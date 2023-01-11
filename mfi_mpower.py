@@ -421,7 +421,7 @@ class MPowerEntity:
 class MPowerSensor(MPowerEntity):
     """mFi mPower sensor representation."""
 
-    _precision = {
+    _precision: dict[str, float | None] = {
         "power": None,
         "current": None,
         "voltage": None,
@@ -445,7 +445,7 @@ class MPowerSensor(MPowerEntity):
         return value
 
     @property
-    def precision(self) -> float:
+    def precision(self) -> dict:
         """Return the precision dictionary."""
         return self._precision
 
