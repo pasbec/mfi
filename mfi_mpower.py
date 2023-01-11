@@ -21,7 +21,6 @@ way to extract board or device model information via HTTP (SSH would be an optio
 
 Author: Pascal Beckstein, 2023
 """
-
 from __future__ import annotations
 
 import asyncio
@@ -225,9 +224,8 @@ class MPowerDevice:
 
     async def update(self) -> None:
         """Update sensor data."""
-        await self.login()
-
         if not self._data or (time.time() - self._time) > self._cache_time:
+            await self.login()
             resp_status = await self.request("GET", "/status.cgi")
             resp_sensors = await self.request("GET", "/mfi/sensors.cgi")
 
@@ -236,7 +234,7 @@ class MPowerDevice:
                 data.update(await resp_sensors.json())
             except aiohttp.ContentTypeError as exc:
                 raise InvalidData(
-                    f"Received invalid data from device {self.host}"
+                    f"Received invalid data from device {self.host}: {exc}"
                 ) from exc
 
             status = data.get("status", None)
@@ -433,7 +431,7 @@ class MPowerEntity:
 
     @data.setter
     def data(self, data: dict) -> None:
-        """Update entity data."""
+        """Set entity data."""
         self._data = data
 
     @property
