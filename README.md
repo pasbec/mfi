@@ -12,7 +12,7 @@ As mFi mPower devices are usually communicating only in a local network and not 
 
 **Be aware that SSL is only supported until TLSv1.0 is eventually removed from Python - at least unless someone finds a way to replace the OpenSSL binary with a more recent version until then.**
 
-A brief description of the old "REST" API can be found in the [UI Community](https://community.ui.com/questions/mPower-mFi-Switch-and-mFi-In-Wall-Outlet-HTTP-API/824c1c63-b7e6-44ed-b19a-f1d68cd07269) but some additional "reverse engineering" was necessary to extract device info. There still seems no way to extract board or model information without SSH. Any hints are ver much appreciated!
+A brief description of the old "REST" API can be found in the [UI Community](https://community.ui.com/questions/mPower-mFi-Switch-and-mFi-In-Wall-Outlet-HTTP-API/824c1c63-b7e6-44ed-b19a-f1d68cd07269) but some additional "reverse engineering" was necessary to extract device info. There still seems no way to extract board or model information without SSH. Any hints are very much appreciated!
 
 To extract board information via SSH, only the `ssh-rsa` host key algorithm in combination with the `diffie-hellman-group1-sha1` key exchange is supported. The latter is available as [legacy option](http://www.openssh.com/legacy.html). There is also a [known bug](https://github.com/ronf/asyncssh/issues/263) in older Dropbear versions which truncates the list of offered key algorithms. The mFi mPower package therefore limits the offered key algorithms to `ssh-rsa` and the encryption algorithm to `aes128-cbc`. Known host checks will be [disabled](https://github.com/ronf/asyncssh/issues/132) as this would require user interaction.
 
