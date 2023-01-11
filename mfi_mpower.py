@@ -182,21 +182,13 @@ class MPowerDevice:
                 ssl=self._ssl,
                 chunked=None,
             )
-        except asyncio.CancelledError as exc:
-            raise asyncio.CancelledError(
-                f"Request to device {self.host} was cancelled",
-            ) from exc
-        except asyncio.TimeoutError as exc:
-            raise asyncio.TimeoutError(
-                f"Request to device {self.host} timed out"
-            ) from exc
         except aiohttp.ClientSSLError as exc:
             raise CannotConnect(
-                f"Could not verify SSL certificate of device {self.host}"
+                f"Could not verify SSL certificate of device {self.host}: {exc}"
             ) from exc
         except aiohttp.ClientError as exc:
             raise CannotConnect(
-                f"Connection to device device {self.host} failed"
+                f"Connection to device device {self.host} failed: {exc}"
             ) from exc
 
         if resp.status != 200:
