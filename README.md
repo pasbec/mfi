@@ -22,7 +22,7 @@ To extract board information via SSH, only the `ssh-rsa` host key algorithm in c
 import asyncio
 import aiohttp
 
-from mfi_mpower import MPowerDevice
+from mfi_mpower.device import MPowerDevice
 
 async def main():
 
@@ -32,6 +32,7 @@ async def main():
         "password": "ubnt",
         "use_ssl": True,
         "verify_ssl": False,
+        "board_info": None,
     }
 
     async with aiohttp.ClientSession() as session:
@@ -41,13 +42,7 @@ async def main():
             print(device)
 
             # Print device board data
-            # NOTE: The board data retrieval requires SSH. Only one attempt is made
-            #       initially to fetch the data. If this fails, the reason/error can
-            #       later be retrieved from the board_error property of the device.
-            if device.board is None:
-                print(f"Board error: {device.board_error}")
-            else:
-                print(device.board)
+            print(device.board)
 
             # Print all sensors and their data
             sensors = await device.create_sensors()

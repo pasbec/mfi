@@ -8,11 +8,6 @@ from .exceptions import MPowerAPIDataError
 class MPowerEntity:
     """mFi mPower entity representation."""
 
-    _device: device.MPowerDevice
-    _port: int
-
-    _data: dict
-
     def __init__(
         self,
         device: device.MPowerDevice,  # pylint: disable=redefined-outer-name
@@ -38,10 +33,10 @@ class MPowerEntity:
 
     def __str__(self):
         """Represent this entity as string."""
-        host = f"name={self._device.name}"
+        name = f"name={self._device.name}"
         keys = ["port", "label"]
         vals = ", ".join([f"{k}={getattr(self, k)}" for k in keys])
-        return f"{__class__.__name__}({host}, {vals})"
+        return f"{__class__.__name__}({name}, {vals})"
 
     async def update(self) -> None:
         """Update entity data from device data."""
@@ -97,7 +92,7 @@ class MPowerEntity:
 class MPowerSensor(MPowerEntity):
     """mFi mPower sensor representation."""
 
-    _precision: dict[str, float | None] = {
+    precision: dict[str, float | None] = {
         "power": None,
         "current": None,
         "voltage": None,
@@ -106,10 +101,10 @@ class MPowerSensor(MPowerEntity):
 
     def __str__(self):
         """Represent this sensor as string."""
-        host = f"name={self._device.name}"
+        name = f"name={self._device.name}"
         keys = ["port", "label", "power", "current", "voltage", "powerfactor"]
         vals = ", ".join([f"{k}={getattr(self, k)}" for k in keys])
-        return f"{__class__.__name__}({host}, {vals})"
+        return f"{__class__.__name__}({name}, {vals})"
 
     def _value(self, key: str, scale: float = 1.0) -> float:
         """Process sensor value with fallback to 0."""
@@ -118,11 +113,6 @@ class MPowerSensor(MPowerEntity):
         if precision is not None:
             return round(value, precision)
         return value
-
-    @property
-    def precision(self) -> dict:
-        """Return the precision dictionary."""
-        return self._precision
 
     @property
     def power(self) -> float:
@@ -150,10 +140,10 @@ class MPowerSwitch(MPowerEntity):
 
     def __str__(self):
         """Represent this switch as string."""
-        host = f"name={self._device.name}"
+        name = f"name={self._device.name}"
         keys = ["port", "label", "output", "relay", "lock"]
         vals = ", ".join([f"{k}={getattr(self, k)}" for k in keys])
-        return f"{__class__.__name__}({host}, {vals})"
+        return f"{__class__.__name__}({name}, {vals})"
 
     async def set(self, output: bool, refresh: bool = True) -> None:
         """Set output to on/off."""

@@ -25,27 +25,6 @@ from .exceptions import (
 class MPowerDevice:
     """mFi mPower device representation."""
 
-    host: str
-    url: URL
-    username: str
-    password: str
-    cache_time: float
-    _board_info: bool | None
-
-    _ssl: ssl.SSLContext | bool
-
-    _session_owned: bool
-    _session: aiohttp.ClientSession | None
-
-    _cookie: str = f"AIROS_SESSIONID={''.join([str(randrange(9)) for i in range(32)])}"
-
-    _board: MPowerBoard | None = None
-    _board_error: MPowerSSHError | None = None
-
-    _authenticated: bool = False
-    _time: float = time.time()
-    _data: dict = {}
-
     def __init__(
         self,
         host: str,
@@ -65,6 +44,8 @@ class MPowerDevice:
         self.cache_time = cache_time
         self._board_info = board_info
 
+        self._board = MPowerBoard(self)
+
         if session is None:
             self._session_owned = True
             self._session = None
@@ -81,6 +62,14 @@ class MPowerDevice:
         else:
             self._ssl = False
 
+        self._cookie = (
+            f"AIROS_SESSIONID={''.join([str(randrange(9)) for i in range(32)])}"
+        )
+
+        self._authenticated = False
+        self._time = time.time()
+        self._data = {}
+
     async def __aenter__(self) -> MPowerDevice:
         """Enter context manager scope."""
         await self.login()
@@ -93,10 +82,12 @@ class MPowerDevice:
 
     def __str__(self):
         """Represent this device as string."""
-        name = __class__.__name__
-        keys = ["name", "ipaddr", "hwaddr", "model"]
+        if self._data:
+            keys = ["name", "ipaddr", "hwaddr", "model"]
+        else:
+            keys = ["host"]
         vals = ", ".join([f"{k}={getattr(self, k)}" for k in keys])
-        return f"{name}({vals})"
+        return f"{__class__.__name__}({vals})"
 
     @property
     def name(self) -> str:
@@ -114,23 +105,16 @@ class MPowerDevice:
         return "Ubiquiti"
 
     @property
-    def board(self) -> MPowerBoard | None:
-        """Return the device board if available."""
-        if self._board is None:
-            return None
+    def board(self) -> MPowerBoard:
+        """Return the device board."""
         return self._board
-
-    @property
-    def board_error(self) -> MPowerSSHError | None:
-        """Return the device board SSH error if any."""
-        return self._board_error
 
     @property
     def eu_model(self) -> bool | None:
         """Return whether this device is a EU model with type F sockets."""
-        if self._board is None:
-            return None
-        return self._board.eu_model
+        if self._board.updated:
+            return self._board.eu_model
+        return None
 
     async def request(
         self, method: str, url: str | URL, data: dict | None = None
@@ -196,20 +180,17 @@ class MPowerDevice:
     async def update(self) -> None:
         """Update sensor data."""
         # NOTE: If board_info is
-        #        - True, one attempt will be made (raise).
-        #        - None, one attempt will be made (no raise).
-        #        - False, no attempt will be made.
+        #        - True, one attempt will be made (raise)
+        #        - None, one attempt will be made (no raise)
+        #        - False, no attempt will be made
+        #       to update the board data!
         if self._board_info is not False:
             try:
-                board = MPowerBoard(self)
-                await board.update()
+                self._board = MPowerBoard(self)
+                await self._board.update()
             except Exception as exc:  # pylint: disable=broad-except
-                self._board = None
-                self._board_error = exc
                 if self._board_info:
                     raise exc
-            else:
-                self._board = board
 
         if not self._data or (time.time() - self._time) > self.cache_time:
             await self.login()
@@ -315,18 +296,18 @@ class MPowerDevice:
     @property
     def model(self) -> str:
         """Return the model name of this device as string."""
-        if self._board is None:
-            ports = self.ports
-            prefix = "mPower"
-            suffix = " (EU)" if self.eu_model else ""
-            if ports == 1:
-                return f"{prefix} mini" + suffix
-            if ports == 3:
-                return prefix + suffix
-            if ports in [6, 8]:
-                return f"{prefix} Pro" + suffix
-            return "Unknown"
-        return self._board.model
+        if self._board.updated:
+            return self._board.model
+        ports = self.ports
+        prefix = "mPower"
+        suffix = " (EU)" if self.eu_model else ""
+        if ports == 1:
+            return f"{prefix} mini" + suffix
+        if ports == 3:
+            return prefix + suffix
+        if ports in [6, 8]:
+            return f"{prefix} Pro" + suffix
+        return "Unknown"
 
     @property
     def description(self) -> str:

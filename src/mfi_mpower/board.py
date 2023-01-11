@@ -16,8 +16,6 @@ from .exceptions import (
 class MPowerBoard:
     """mFi mPower board representation."""
 
-    _device: device.MPowerDevice
-
     # NOTE: Ubiquiti mFi mPower Devices with firmware 2.1.11 use Dropbear SSH 0.51 (27 Mar 2008).
     _ssh: dict = {
         "kex_algs": "diffie-hellman-group1-sha1",
@@ -28,30 +26,31 @@ class MPowerBoard:
         "known_hosts": None,
     }
 
-    _data: dict = {}
-
     def __init__(
         self,
         device: device.MPowerDevice,  # pylint: disable=redefined-outer-name
     ) -> None:
         """Initialize the board."""
         self._device = device
+        self._data = {}
 
     def __str__(self):
         """Represent this board as string."""
-        name = __class__.__name__
-        keys = [
-            "name",
-            "sysid",
-            "cpurevision",
-            "revision",
-            "hwaddr",
-            "eu_model",
-            "model",
-            "ports",
-        ]
+        if self._data:
+            keys = [
+                "name",
+                "sysid",
+                "cpurevision",
+                "revision",
+                "hwaddr",
+                "eu_model",
+                "model",
+                "ports",
+            ]
+        else:
+            keys = ["host"]
         vals = ", ".join([f"{k}={getattr(self, k)}" for k in keys])
-        return f"{name}({vals})"
+        return f"{__class__.__name__}({vals})"
 
     @property
     def host(self) -> str:
