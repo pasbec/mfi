@@ -30,6 +30,7 @@ class MPowerDevice:
     username: str
     password: str
     cache_time: float
+    _board_info: bool | None
 
     _ssl: ssl.SSLContext | bool
 
@@ -53,6 +54,7 @@ class MPowerDevice:
         use_ssl: bool = False,
         verify_ssl: bool = False,
         cache_time: float = 0.0,
+        board_info: bool | None = None,
         session: aiohttp.ClientSession | None = None,
     ) -> None:
         """Initialize the device."""
@@ -61,6 +63,7 @@ class MPowerDevice:
         self.username = username
         self.password = password
         self.cache_time = cache_time
+        self._board_info = board_info
 
         if session is None:
             self._session_owned = True
@@ -125,9 +128,9 @@ class MPowerDevice:
     @property
     def eu_model(self) -> bool | None:
         """Return whether this device is a EU model with type F sockets."""
-        if self.board is None:
+        if self._board is None:
             return None
-        return self.board.eu_model
+        return self._board.eu_model
 
     async def request(
         self, method: str, url: str | URL, data: dict | None = None
@@ -192,13 +195,21 @@ class MPowerDevice:
 
     async def update(self) -> None:
         """Update sensor data."""
-        if self._board is None:
+        # NOTE: If board_info is
+        #        - True, one attempt will be made (raise).
+        #        - None, one attempt will be made (no raise).
+        #        - False, no attempt will be made.
+        if self._board_info is not False:
             try:
-                self._board = MPowerBoard(self)
-                await self._board.update()
-            except MPowerSSHError as exc:
+                board = MPowerBoard(self)
+                await board.update()
+            except Exception as exc:  # pylint: disable=broad-except
                 self._board = None
                 self._board_error = exc
+                if self._board_info:
+                    raise exc
+            else:
+                self._board = board
 
         if not self._data or (time.time() - self._time) > self.cache_time:
             await self.login()
@@ -304,7 +315,7 @@ class MPowerDevice:
     @property
     def model(self) -> str:
         """Return the model name of this device as string."""
-        if self.board is None:
+        if self._board is None:
             ports = self.ports
             prefix = "mPower"
             suffix = " (EU)" if self.eu_model else ""
@@ -315,7 +326,7 @@ class MPowerDevice:
             if ports in [6, 8]:
                 return f"{prefix} Pro" + suffix
             return "Unknown"
-        return self.board.model
+        return self._board.model
 
     @property
     def description(self) -> str:

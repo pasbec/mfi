@@ -5,39 +5,23 @@ class MPowerError(Exception):
     """General mFi MPower error."""
 
 
-class MPowerConnError(Exception):
-    """General mFi MPower connection error."""
-
-
-class MPowerAuthError(Exception):
-    """General mFi MPower authentication error."""
-
-
-class MPowerReadError(Exception):
-    """General mFi MPower data read error."""
-
-
-class MPowerDataError(Exception):
-    """General mFi MPower data validity error."""
-
-
 class MPowerSSHError(MPowerError):
     """Error related to board info extraction via SSH."""
 
 
-class MPowerSSHConnError(MPowerSSHError, MPowerConnError):
+class MPowerSSHConnError(MPowerSSHError):
     """Error related to SSH connections."""
 
 
-class MPowerSSHAuthError(MPowerSSHError, MPowerAuthError):
+class MPowerSSHAuthError(MPowerSSHError):
     """Error related to SSH data authentication."""
 
 
-class MPowerSSHReadError(MPowerSSHError, MPowerReadError):
+class MPowerSSHReadError(MPowerSSHError):
     """Error related to SSH data reading."""
 
 
-class MPowerSSHDataError(MPowerSSHError, MPowerDataError):
+class MPowerSSHDataError(MPowerSSHError):
     """Error related to SSH data validity."""
 
 
@@ -45,17 +29,17 @@ class MPowerAPIError(MPowerError):
     """Error related to the "REST" API from Ubiquiti."""
 
 
-class MPowerAPIConnError(MPowerAPIError, MPowerConnError):
+class MPowerAPIConnError(MPowerAPIError):
     """Error related to "REST" API connections."""
 
 
-class MPowerAPIAuthError(MPowerAPIError, MPowerAuthError):
+class MPowerAPIAuthError(MPowerAPIError):
     """Error related to "REST" API authentication."""
 
 
-class MPowerAPIReadError(MPowerAPIError, MPowerReadError):
+class MPowerAPIReadError(MPowerAPIError):
     """Error related to "REST" API data reading."""
 
 
-class MPowerAPIDataError(MPowerAPIError, MPowerDataError):
+class MPowerAPIDataError(MPowerAPIError):
     """Error related to "REST" API data validity."""
