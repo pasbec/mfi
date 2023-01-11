@@ -1,7 +1,10 @@
 {
-    "editor.defaultFormatter": "esbenp.prettier-vscode",
-    "[python]": {
-      "editor.defaultFormatter": null
-    },
-    "python.formatting.provider": "black"
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "[python]": {
+    "editor.defaultFormatter": null
+  },
+  "editor.formatOnSave": true,
+  "python.formatting.provider": "black",
+  "python.linting.pylintEnabled": true,
+  "python.linting.enabled": true
 }

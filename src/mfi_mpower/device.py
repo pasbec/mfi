@@ -10,33 +10,38 @@ import aiohttp
 from aiohttp import ClientResponse, ClientSession
 from yarl import URL
 
+from .board import MPowerBoard
 from .entities import MPowerSensor, MPowerSwitch
 from .exceptions import (
-    CannotConnect,
-    InvalidAuth,
-    InvalidData,
-    InvalidResponse,
+    MPowerSSHError,
+    MPowerAPIError,
+    MPowerAPIConnError,
+    MPowerAPIAuthError,
+    MPowerAPIReadError,
+    MPowerAPIDataError,
 )
 
 
 class MPowerDevice:
     """mFi mPower device representation."""
 
-    _host: str
-    _url: URL
-    _username: str
-    _password: str
-    _eu_model: bool
-    _cache_time: float
+    host: str
+    url: URL
+    username: str
+    password: str
+    cache_time: float
 
     _cookie: str
     _session: bool
     _ssl: bool | ssl.SSLContext
 
-    _updated: bool
-    _authenticated: bool
-    _time: float
-    _data: dict
+    _board: MPowerBoard | None = None
+    _board_error: MPowerSSHError | None = None
+
+    _updated: bool = False
+    _authenticated: bool = False
+    _time: float = time.time()
+    _data: dict = {}
 
     def __init__(
         self,
@@ -45,17 +50,15 @@ class MPowerDevice:
         password: str,
         use_ssl: bool = False,
         verify_ssl: bool = False,
-        eu_model: bool = False,
         cache_time: float = 0.0,
         session: ClientSession | None = None,
     ) -> None:
         """Initialize the device."""
-        self._host = host
-        self._url = URL(f"https://{host}" if use_ssl else f"http://{host}")
-        self._username = username
-        self._password = password
-        self._eu_model = eu_model
-        self._cache_time = cache_time
+        self.host = host
+        self.url = URL(f"https://{host}" if use_ssl else f"http://{host}")
+        self.username = username
+        self.password = password
+        self.cache_time = cache_time
 
         self._cookie = "".join([str(randrange(9)) for i in range(32)])
         self._cookie = f"AIROS_SESSIONID={self._cookie}"
@@ -67,19 +70,14 @@ class MPowerDevice:
             self.session = session
             self._session = False
 
+        # NOTE: Ubiquiti mFi mPower Devices with firmware 2.1.11 use OpenSSL 1.0.0g (18 Jan 2012)
         if use_ssl:
-            # NOTE: Ubiquiti mFi mPower Devices only support SSLv3 and TLSv1.0
             self._ssl = ssl.SSLContext(ssl.PROTOCOL_TLSv1)
-            self._ssl.set_ciphers("AES256-SHA:AES128-SHA:SEED-SHA")
+            self._ssl.set_ciphers("AES128-SHA")
             self._ssl.load_default_certs()
             self._ssl.verify_mode = ssl.CERT_REQUIRED if verify_ssl else ssl.CERT_NONE
         else:
             self._ssl = False
-
-        self._updated = False
-        self._authenticated = False
-        self._time = time.time()
-        self._data = {}
 
     def __del__(self):
         """
@@ -111,29 +109,43 @@ class MPowerDevice:
     def __str__(self):
         """Represent this device as string."""
         name = __class__.__name__
-        keys = ["hostname", "ip", "hwaddr", "model"]
+        keys = ["name", "ipaddr", "hwaddr", "model"]
         vals = ", ".join([f"{k}={getattr(self, k)}" for k in keys])
         return f"{name}({vals})"
 
     @property
-    def url(self) -> URL:
-        """Return device URL."""
-        return self._url
-
-    @property
-    def host(self) -> str:
-        """Return device host."""
-        return self._host
-
-    @property
-    def eu_model(self) -> bool:
-        """Return whether this device is a EU model with type F sockets."""
-        return self._eu_model
+    def name(self) -> str:
+        """Return the device name."""
+        if self._data:
+            try:
+                return self.hostname
+            except Exception:  # pylint: disable=broad-except
+                pass
+        return self.host
 
     @property
     def manufacturer(self) -> str:
         """Return the device manufacturer."""
         return "Ubiquiti"
+
+    @property
+    def board(self) -> MPowerBoard | None:
+        """Return the device board if available."""
+        if self._board is None:
+            return None
+        return self._board
+
+    @property
+    def board_error(self) -> MPowerSSHError | None:
+        """Return the device board SSH error if any."""
+        return self._board_error
+
+    @property
+    def eu_model(self) -> bool | None:
+        """Return whether this device is a EU model with type F sockets."""
+        if self.board is None:
+            return None
+        return self.board.eu_model
 
     async def request(
         self, method: str, url: str | URL, data: dict | None = None
@@ -152,17 +164,17 @@ class MPowerDevice:
                 chunked=None,
             )
         except aiohttp.ClientSSLError as exc:
-            raise CannotConnect(
-                f"Could not verify SSL certificate of device {self.host}: {exc}"
+            raise MPowerAPIConnError(
+                f"Could not verify SSL certificate of device {self.name}: {exc}"
             ) from exc
         except aiohttp.ClientError as exc:
-            raise CannotConnect(
-                f"Connection to device {self.host} failed: {exc}"
+            raise MPowerAPIConnError(
+                f"Connection to device {self.name} failed: {exc}"
             ) from exc
 
         if resp.status != 200:
-            raise InvalidResponse(
-                f"Received bad HTTP status code from device {self.host}: {resp.status}"
+            raise MPowerAPIReadError(
+                f"Received bad HTTP status code from device {self.name}: {resp.status}"
             )
 
         # NOTE: Un-authorized request will redirect to /login.cgi
@@ -179,12 +191,12 @@ class MPowerDevice:
             await self.request(
                 "POST",
                 "/login.cgi",
-                data={"username": self._username, "password": self._password},
+                data={"username": self.username, "password": self.password},
             )
 
             if not self._authenticated:
-                raise InvalidAuth(
-                    f"Login to device {self.host} failed due to wrong credentials"
+                raise MPowerAPIAuthError(
+                    f"Login to device {self.name} failed due to wrong API credentials"
                 )
 
     async def logout(self) -> None:
@@ -194,7 +206,15 @@ class MPowerDevice:
 
     async def update(self) -> None:
         """Update sensor data."""
-        if not self._data or (time.time() - self._time) > self._cache_time:
+        if not self._updated:
+            try:
+                self._board = MPowerBoard(self)
+                await self._board.update()
+            except MPowerSSHError as exc:
+                self._board = None
+                self._board_error = exc
+
+        if not self._data or (time.time() - self._time) > self.cache_time:
             await self.login()
             resp_status = await self.request("GET", "/status.cgi")
             resp_sensors = await self.request("GET", "/mfi/sensors.cgi")
@@ -203,14 +223,14 @@ class MPowerDevice:
                 data = await resp_status.json()
                 data.update(await resp_sensors.json())
             except aiohttp.ContentTypeError as exc:
-                raise InvalidData(
-                    f"Received invalid data from device {self.host}: {exc}"
+                raise MPowerAPIDataError(
+                    f"Received invalid data from device {self.name}: {exc}"
                 ) from exc
 
             status = data.get("status", None)
             if status != "success":
-                raise InvalidData(
-                    f"Received invalid sensor update status from device {self.host}: {status}"
+                raise MPowerAPIDataError(
+                    f"Received invalid sensor update status from device {self.name}: {status}"
                 )
 
             self._time = time.time()
@@ -218,14 +238,16 @@ class MPowerDevice:
 
     @property
     def updated(self) -> bool:
-        """Return if the device has already been updated."""
+        """Return if the device data has already been updated."""
         return bool(self._data)
 
     @property
     def data(self) -> dict:
         """Return device data."""
         if not self._data:
-            raise InvalidData(f"Device {self.host} must be updated first")
+            raise MPowerAPIError(
+                f"Device data for device {self.name} must be updated first"
+            )
         return self._data
 
     @data.setter
@@ -246,7 +268,7 @@ class MPowerDevice:
     @property
     def hostname(self) -> str:
         """Return the device host name."""
-        return self.host_data.get("hostname", self._host)
+        return self.host_data.get("hostname", "")
 
     @property
     def lan_data(self) -> dict:
@@ -259,24 +281,20 @@ class MPowerDevice:
         return self.data.get("wlan", {})
 
     @property
-    def ip(self) -> str:
+    def ipaddr(self) -> str:
         """Return the device IP address from LAN if connected, else from WLAN."""
         lan_connected = self.lan_data.get("status", "") != "Unplugged"
         if lan_connected:
-            ip = self.lan_data.get("ip", "")
-        else:
-            ip = self.wlan_data.get("ip", "")
-        return ip
+            return self.lan_data.get("ip", "")
+        return self.wlan_data.get("ip", "")
 
     @property
     def hwaddr(self) -> str:
         """Return the device hardware address from LAN if connected, else from WLAN."""
         lan_connected = self.lan_data.get("status", "") != "Unplugged"
         if lan_connected:
-            hwaddr = self.lan_data.get("hwaddr", "")
-        else:
-            hwaddr = self.wlan_data.get("hwaddr", "")
-        return hwaddr
+            return self.lan_data.get("hwaddr", "")
+        return self.wlan_data.get("hwaddr", "")
 
     @property
     def unique_id(self) -> str:
@@ -300,16 +318,18 @@ class MPowerDevice:
     @property
     def model(self) -> str:
         """Return the model name of this device as string."""
-        ports = self.ports
-        prefix = "mPower"
-        suffix = " (EU)" if self._eu_model else ""
-        if ports == 1:
-            return f"{prefix} mini" + suffix
-        if ports == 3:
-            return prefix + suffix
-        if ports in [6, 8]:
-            return f"{prefix} PRO" + suffix
-        return "Unknown"
+        if self.board is None:
+            ports = self.ports
+            prefix = "mPower"
+            suffix = " (EU)" if self.eu_model else ""
+            if ports == 1:
+                return f"{prefix} mini" + suffix
+            if ports == 3:
+                return prefix + suffix
+            if ports in [6, 8]:
+                return f"{prefix} Pro" + suffix
+            return "Unknown"
+        return self.board.model
 
     @property
     def description(self) -> str:

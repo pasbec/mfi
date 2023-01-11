@@ -1,43 +1,46 @@
 """Ubiquiti mFi MPower entities"""
 from __future__ import annotations
 
-from . import device
-from .exceptions import InvalidData
+from . import device  # pylint: disable=unused-import
+from .exceptions import MPowerAPIDataError
 
 
 class MPowerEntity:
-    """mFi mPower entity baseclass."""
+    """mFi mPower entity representation."""
 
     _device: device.MPowerDevice
     _port: int
     _data: dict
 
-    def __init__(self, device: device.MPowerDevice, port: int) -> None:
+    def __init__(
+        self,
+        device: device.MPowerDevice,  # pylint: disable=redefined-outer-name
+        port: int,
+    ) -> None:
         """Initialize the entity."""
         self._device = device
         self._port = port
 
         if not device.updated:
-            raise InvalidData(f"Device {device.hostname} must be updated first")
+            raise MPowerAPIDataError(f"Device {device.name} must be updated first")
 
         self._data = device.port_data[self._port - 1]
 
         if port < 1:
             raise ValueError(
-                f"Port number {port} for device {device.hostname} is too small: 1-{device.ports}"
+                f"Port number {port} for device {device.name} is too small: 1-{device.ports}"
             )
         if port > device.ports:
             raise ValueError(
-                f"Port number {port} for device {device.hostname} is too large: 1-{device.ports}"
+                f"Port number {port} for device {device.name} is too large: 1-{device.ports}"
             )
 
     def __str__(self):
         """Represent this entity as string."""
-        name = __class__.__name__
-        host = f"hostname={self._device.hostname}"
+        host = f"name={self._device.name}"
         keys = ["port", "label"]
         vals = ", ".join([f"{k}={getattr(self, k)}" for k in keys])
-        return f"{name}({host}, {vals})"
+        return f"{__class__.__name__}({host}, {vals})"
 
     async def update(self) -> None:
         """Update entity data from device data."""
@@ -102,11 +105,10 @@ class MPowerSensor(MPowerEntity):
 
     def __str__(self):
         """Represent this sensor as string."""
-        name = __class__.__name__
-        host = f"hostname={self._device.hostname}"
+        host = f"name={self._device.name}"
         keys = ["port", "label", "power", "current", "voltage", "powerfactor"]
         vals = ", ".join([f"{k}={getattr(self, k)}" for k in keys])
-        return f"{name}({host}, {vals})"
+        return f"{__class__.__name__}({host}, {vals})"
 
     def _value(self, key: str, scale: float = 1.0) -> float:
         """Process sensor value with fallback to 0."""
@@ -147,11 +149,10 @@ class MPowerSwitch(MPowerEntity):
 
     def __str__(self):
         """Represent this switch as string."""
-        name = __class__.__name__
-        host = f"hostname={self._device.hostname}"
+        host = f"name={self._device.name}"
         keys = ["port", "label", "output", "relay", "lock"]
         vals = ", ".join([f"{k}={getattr(self, k)}" for k in keys])
-        return f"{name}({host}, {vals})"
+        return f"{__class__.__name__}({host}, {vals})"
 
     async def set(self, output: bool, refresh: bool = True) -> None:
         """Set output to on/off."""

@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools >= 61.0.0", "aiohttp", "yarl"]
+requires = ["setuptools >= 61.0.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -15,14 +15,11 @@ classifiers = [
     "Programming Language :: Python :: 3",
 ]
 keywords = ["ubiquiti", "mfi", "mpower"]
-dependencies = [
-    "aiohttp",
-    "yarl",
-]
+dependencies = ["aiohttp", "yarl", "asyncssh"]
 requires-python = ">=3.9"
 
 [project.optional-dependencies]
-dev = ["black", "bumpver", "isort", "pip-tools", "pytest", "build", "twine"]
+dev = ["bumpver", "black", "pylint", "isort", "pip-tools", "pytest", "build", "twine"]
 
 [project.urls]
 Homepage = "https://github.com/pasbec/mfi"
@@ -46,7 +43,7 @@ push            = false
 
 [tool.bumpver.file_patterns]
 "pyproject.toml" = ['current_version = "{version}"', 'version = "{version}"']
-"src/mfi/__init__.py" = ['__version__ = "{version}"']
+"src/mfi_mpower/__init__.py" = ['__version__ = "{version}"']
 "VERSION.txt" = ['{version}']
 
 [tool.black]
