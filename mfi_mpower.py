@@ -15,6 +15,11 @@ unless someone finds a way to replace the OpenSSL binary with a more recent vers
 
 A brief description of the old API can be found here:
     https://community.ui.com/questions/mPower-mFi-Switch-and-mFi-In-Wall-Outlet-HTTP-API/824c1c63-b7e6-44ed-b19a-f1d68cd07269
+
+Some additional "reverse enginering" was necessary to realize this API but there still seems no
+way to extract board or device model information via HTTP (SSH would be an option though).
+
+Author: Pascal Beckstein, 2023
 """
 
 from __future__ import annotations
@@ -58,7 +63,7 @@ class MPowerDevice:
 
     _authenticated: bool
     _time: float
-    _data: list[dict]
+    _data: dict
 
     def __init__(
         self,
@@ -101,7 +106,7 @@ class MPowerDevice:
 
         self._authenticated = False
         self._time = time.time()
-        self._data = []
+        self._data = {}
 
     def __del__(self):
         """
@@ -132,10 +137,10 @@ class MPowerDevice:
 
     def __str__(self):
         """Represent this device as string."""
-        if not self._data:
-            return f"{self.model} ({self._host})"
-        port_str = "ports" if self.ports > 1 else "port"
-        return f"{self.model} [{self._host}, {self.ports} {port_str}]"
+        name = __class__.__name__
+        keys = ["hostname", "ip", "hwaddr", "model"]
+        vals = ", ".join([f"{k}={getattr(self, k)}" for k in keys])
+        return f"{name}({vals})"
 
     async def request(
         self, method: str, url: str, data: dict | None = None
@@ -185,40 +190,80 @@ class MPowerDevice:
         """Update sensor data."""
         await self.login()
         if not self._data or (time.time() - self._time) > self._cache_time:
+            resp = await self.request("GET", "/status.cgi")
+            data = await resp.json()
             resp = await self.request("GET", "/mfi/sensors.cgi")
-            json = await resp.json()
-            status = json.get("status", None)
+            data.update(await resp.json())
+            status = data.get("status", None)
             if status != "success":
                 raise UpdateError(f"Bad sensor update status: {status}")
             self._time = time.time()
-            self._data = json["sensors"]
+            self._data = data
 
     @property
-    async def config(self) -> str:
-        """Retrieve device configuration data."""
-        await self.login()
-        resp = await self.request("GET", "/cfg.cgi")
-        return await resp.text()
-
-    @property
-    def host(self) -> str:
-        """Return the device hostname."""
-        return self._host
-
-    @property
-    def data(self) -> list[dict]:
+    def data(self) -> dict:
         """Return device data."""
         return self._data
 
     @data.setter
-    def data(self, data: list[dict]) -> None:
-        """Update device data."""
+    def data(self, data: dict) -> None:
+        """Set device data."""
         self._data = data
+
+    @property
+    def host_data(self) -> dict:
+        """Return the host data."""
+        return self.data.get("host", {})
+
+    @property
+    def fwversion(self) -> str:
+        """Return the host firmware version."""
+        return self.host_data.get("fwversion", "")
+
+    @property
+    def hostname(self) -> str:
+        """Return the host name."""
+        return self.host_data.get("hostname", self._host)
+
+    @property
+    def lan_data(self) -> dict:
+        """Return the LAN data."""
+        return self.data.get("lan", {})
+
+    @property
+    def wlan_data(self) -> dict:
+        """Return the WLAN data."""
+        return self.data.get("wlan", {})
+
+    @property
+    def ip(self) -> str:
+        """Return the IP address from LAN if connected, else from WLAN."""
+        lan_connected = self.lan_data.get("status", "") != "Unplugged"
+        if lan_connected:
+            ip = self.lan_data.get("ip", "")
+        else:
+            ip = self.wlan_data.get("ip", "")
+        return ip
+
+    @property
+    def hwaddr(self) -> str:
+        """Return the hardware address from LAN if connected, else from WLAN."""
+        lan_connected = self.lan_data.get("status", "") != "Unplugged"
+        if lan_connected:
+            hwaddr = self.lan_data.get("hwaddr", "")
+        else:
+            hwaddr = self.wlan_data.get("hwaddr", "")
+        return hwaddr
+
+    @property
+    def port_data(self) -> list[dict]:
+        """Return the port data."""
+        return self.data.get("sensors", [])
 
     @property
     def ports(self) -> int:
         """Return number of available ports."""
-        return len(self._data)
+        return len(self.port_data)
 
     @property
     def eu_model(self) -> bool:
@@ -285,25 +330,27 @@ class MPowerEntity:
         self._device = device
         self._port = port
 
-        data = self._device._data
-        if not data:
+        if not device.port_data:
             raise ValueError("Device must be updated to create entity")
-        self._data = self._device._data[self._port - 1]
+        self._data = device.port_data[self._port - 1]
 
-        ports = self._device.ports
         if port < 1:
-            raise ValueError(f"Port number {port} is too small: 1-{ports}")
-        if port > ports:
-            raise ValueError(f"Port number {port} is too large: 1-{ports}")
+            raise ValueError(f"Port number {port} is too small: 1-{device.ports}")
+        if port > device.ports:
+            raise ValueError(f"Port number {port} is too large: 1-{device.ports}")
 
     def __str__(self):
         """Represent this entity as string."""
-        return " ".join([str(self._device), "Entity"])
+        name = __class__.__name__
+        host = f"hostname={self._device.hostname}"
+        keys = ["port", "label"]
+        vals = ", ".join([f"{k}={getattr(self, k)}" for k in keys])
+        return f"{name}({host}, {vals})"
 
     async def update(self) -> None:
         """Update entity data from device data."""
         await self._device.update()
-        self._data = self._device.data[self._port - 1]
+        self._data = self._device.port_data[self._port - 1]
 
     @property
     def device(self) -> MPowerDevice:
@@ -351,9 +398,11 @@ class MPowerSensor(MPowerEntity):
 
     def __str__(self):
         """Represent this sensor as string."""
-        keys = ["label", "power", "current", "voltage", "powerfactor"]
+        name = __class__.__name__
+        host = f"hostname={self._device.hostname}"
+        keys = ["port", "label", "power", "current", "voltage", "powerfactor"]
         vals = ", ".join([f"{k}={getattr(self, k)}" for k in keys])
-        return " ".join([str(self._device), f"Sensor {self._port}: {vals}"])
+        return f"{name}({host}, {vals})"
 
     @property
     def power(self) -> float:
@@ -372,8 +421,8 @@ class MPowerSensor(MPowerEntity):
 
     @property
     def powerfactor(self) -> float:
-        """Return the output current factor ("real power" / "apparent power") [1]."""
-        return round(self._data["powerfactor"], 3)
+        """Return the output current factor ("real power" / "apparent power") [%]."""
+        return round(100 * self._data["powerfactor"], 1)
 
 
 class MPowerSwitch(MPowerEntity):
@@ -381,9 +430,11 @@ class MPowerSwitch(MPowerEntity):
 
     def __str__(self):
         """Represent this switch as string."""
-        keys = ["label", "output", "relay", "lock"]
+        name = __class__.__name__
+        host = f"hostname={self._device.hostname}"
+        keys = ["port", "label", "output", "relay", "lock"]
         vals = ", ".join([f"{k}={getattr(self, k)}" for k in keys])
-        return " ".join([str(self._device), f"Switch {self._port}: {vals}"])
+        return f"{name}({host}, {vals})"
 
     async def set(self, output: bool, refresh: bool = True) -> None:
         """Set output to on/off."""
