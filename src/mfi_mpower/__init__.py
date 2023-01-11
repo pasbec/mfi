@@ -5,4 +5,4 @@ from .device import MPowerDevice
 from .entities import MPowerSensor, MPowerSwitch
 from .exceptions import *
 
-__version__ = "1.2.0"
+__version__ = "1.2.1"
