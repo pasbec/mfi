@@ -158,12 +158,16 @@ class MPowerDevice:
                 ssl=self._ssl,
                 chunked=None,
             )
-        except Exception as exception:
+        except Exception as exc:
             self.__del__()  # pylint: disable=unnecessary-dunder-call
-            raise CannotConnect(str(exception)) from exception
+            raise CannotConnect(
+                f"Connection to device {self.hostname} failed: {exc}"
+            ) from exc
 
         if resp.status != 200:
-            raise BadResponse(f"Bad HTTP status code: {resp.status}")
+            raise BadResponse(
+                f"Received bad HTTP status code from device {self.hostname}: {resp.status}"
+            )
 
         return resp
 
@@ -178,7 +182,9 @@ class MPowerDevice:
 
             # NOTE: Successful login will *not* redirect back to /login.cgi
             if str(resp.url.path) == "/login.cgi":
-                raise InvalidAuth("Login failed due to wrong credentials")
+                raise InvalidAuth(
+                    f"Login to device {self.hostname} failed due to wrong credentials"
+                )
 
             self._authenticated = True
 
@@ -199,7 +205,9 @@ class MPowerDevice:
             data.update(await resp.json())
             status = data.get("status", None)
             if status != "success":
-                raise UpdateError(f"Bad sensor update status: {status}")
+                raise UpdateError(
+                    f"Received bad sensor update status from device {self.hostname}: {status}"
+                )
             self._time = time.time()
             self._data = data
 
@@ -354,13 +362,19 @@ class MPowerEntity:
         self._port = port
 
         if not device.port_data:
-            raise ValueError("Device must be updated to create entity")
+            raise ValueError(
+                f"Device {device.hostname} must be updated once before creating entities"
+            )
         self._data = device.port_data[self._port - 1]
 
         if port < 1:
-            raise ValueError(f"Port number {port} is too small: 1-{device.ports}")
+            raise ValueError(
+                f"Port number {port} for device {device.hostname} is too small: 1-{device.ports}"
+            )
         if port > device.ports:
-            raise ValueError(f"Port number {port} is too large: 1-{device.ports}")
+            raise ValueError(
+                f"Port number {port} for device {device.hostname} is too large: 1-{device.ports}"
+            )
 
     def __str__(self):
         """Represent this entity as string."""
