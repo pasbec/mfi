@@ -9,7 +9,7 @@ import asyncio
 
 import aiohttp
 
-from mfi.mpower import MPowerDevice
+from mfi_mpower import MPowerDevice
 
 async def main():
 
