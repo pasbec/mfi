@@ -161,7 +161,6 @@ class mFimPowerDevice:
             await self.login()
 
         if self._data is None or (time.time() - self._time) > self.cache_time:
-        
             resp = await self.session.get(
                 f"{self.url}/sensors",
                 ssl=self.ssl
@@ -206,7 +205,7 @@ class mFimPowerDevice:
         if port > await self.ports:
             raise ValueError("Port number {port} is too large")
         
-        resp = await self.session.put(
+        resp = await self.session.post(
             f"{self.url}/sensors/{port}",
             data={"output": int(output)},
             ssl=self.ssl
