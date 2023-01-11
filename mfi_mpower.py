@@ -134,9 +134,8 @@ class MPowerDevice:
         """Represent this device as string."""
         if not self._data:
             return f"{self.model} ({self._host})"
-        else:
-            pstr = "ports" if self.ports > 1 else "port"
-            return f"{self.model} [{self._host}, {self.ports} {pstr}]"
+        pstr = "ports" if self.ports > 1 else "port"
+        return f"{self.model} [{self._host}, {self.ports} {pstr}]"
 
     async def request(
         self, method: str, url: str, data: dict | None = None
@@ -225,15 +224,14 @@ class MPowerDevice:
     def model(self) -> str:
         """Return the model name of this device as string."""
         ports = self.ports
-        eu = " (EU)" if self._eu_model else ""
+        eu_tag = " (EU)" if self._eu_model else ""
         if ports == 1:
-            return "mPower mini" + eu
-        elif ports == 3:
-            return "mPower" + eu
-        elif ports == 6 or ports == 8:
-            return "mPower PRO" + eu
-        else:
-            return "Unknown"
+            return "mPower mini" + eu_tag
+        if ports == 3:
+            return "mPower" + eu_tag
+        if ports in [6, 8]:
+            return "mPower PRO" + eu_tag
+        return "Unknown"
 
     @property
     def description(self) -> str:
@@ -241,14 +239,13 @@ class MPowerDevice:
         ports = self.ports
         if ports == 1:
             return "mFi Power Adapter with Wi-Fi"
-        elif ports == 3:
+        if ports == 3:
             return "3-Port mFi Power Strip with Wi-Fi"
-        elif ports == 6:
+        if ports == 6:
             return "6-Port mFi Power Strip with Ethernet and Wi-Fi"
-        elif ports == 8:
+        if ports == 8:
             return "8-Port mFi Power Strip with Ethernet and Wi-Fi"
-        else:
-            return ""
+        return ""
 
     async def create_sensor(self, port: int) -> MPowerSensor:
         """Create a single sensor."""
@@ -291,7 +288,7 @@ class MPowerEntity:
         ports = self._device.ports
         if port < 1:
             raise ValueError(f"Port number {port} is too small: 1-{ports}")
-        elif port > ports:
+        if port > ports:
             raise ValueError(f"Port number {port} is too large: 1-{ports}")
 
     def __str__(self):
