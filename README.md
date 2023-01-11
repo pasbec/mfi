@@ -14,11 +14,11 @@ from mfi.mpower import MPowerDevice
 async def main():
 
     data = {
-        "host": "mympower",
-        "username": "admin",
-        "password": "correcthorsebatterystaple",
+        "host": "name_or_ip",
+        "username": "ubnt",
+        "password": "ubnt",
         "use_ssl": True,
-        "verify_ssl": True,
+        "verify_ssl": False,
     }
 
     async with aiohttp.ClientSession() as session:
