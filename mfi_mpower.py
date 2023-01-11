@@ -184,24 +184,24 @@ class MPowerDevice:
             )
         except asyncio.CancelledError as exc:
             raise asyncio.CancelledError(
-                f"Request to device {self.hostname} was cancelled",
+                f"Request to device {self.host} was cancelled",
             ) from exc
         except asyncio.TimeoutError as exc:
             raise asyncio.TimeoutError(
-                f"Request to device {self.hostname} timed out"
+                f"Request to device {self.host} timed out"
             ) from exc
         except aiohttp.ClientSSLError as exc:
             raise CannotConnect(
-                f"Could not verify SSL certificate of device {self.hostname}"
+                f"Could not verify SSL certificate of device {self.host}"
             ) from exc
         except aiohttp.ClientError as exc:
             raise CannotConnect(
-                f"Connection to device device {self.hostname} failed"
+                f"Connection to device device {self.host} failed"
             ) from exc
 
         if resp.status != 200:
             raise InvalidResponse(
-                f"Received bad HTTP status code from device {self.hostname}: {resp.status}"
+                f"Received bad HTTP status code from device {self.host}: {resp.status}"
             )
 
         # NOTE: Un-authorized request will redirect to /login.cgi
@@ -223,7 +223,7 @@ class MPowerDevice:
 
             if not self._authenticated:
                 raise InvalidAuth(
-                    f"Login to device {self.hostname} failed due to wrong credentials"
+                    f"Login to device {self.host} failed due to wrong credentials"
                 )
 
     async def logout(self) -> None:
@@ -244,13 +244,13 @@ class MPowerDevice:
                 data.update(await resp_sensors.json())
             except aiohttp.ContentTypeError as exc:
                 raise InvalidData(
-                    f"Received invalid data from device {self.hostname}"
+                    f"Received invalid data from device {self.host}"
                 ) from exc
 
             status = data.get("status", None)
             if status != "success":
                 raise InvalidData(
-                    f"Received invalid sensor update status from device {self.hostname}: {status}"
+                    f"Received invalid sensor update status from device {self.host}: {status}"
                 )
 
             self._time = time.time()
@@ -265,7 +265,7 @@ class MPowerDevice:
     def data(self) -> dict:
         """Return device data."""
         if not self._data:
-            raise InvalidData(f"Device {self.hostname} must be updated first")
+            raise InvalidData(f"Device {self.host} must be updated first")
         return self._data
 
     @data.setter
