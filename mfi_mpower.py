@@ -46,19 +46,19 @@ class UpdateError(Exception):
 class MPowerDevice:
     """mFi mPower device representation."""
 
-    _host: str = None
-    _url: str = None
-    _username: str = None
-    _password: str = None
-    _cache_time: float = None
-    _eu_model: bool = None
+    _host: str
+    _url: str
+    _username: str
+    _password: str
+    _cache_time: float
+    _eu_model: bool
 
-    _session = None
-    _ssl = None
+    _session: bool
+    _ssl: bool | ssl.SSLContext
 
-    _authenticated: bool = None
-    _time: float = None
-    _data: list[dict] = None
+    _authenticated: bool
+    _time: float
+    _data: list[dict]
 
     def __init__(
         self,
@@ -69,7 +69,7 @@ class MPowerDevice:
         verify_ssl: bool = True,
         cache_time: float = 0.0,
         eu_model: bool = False,
-        session: ClientSession = None,
+        session: ClientSession | None = None,
     ) -> None:
         """Initialize the device."""
         self._host = host
@@ -138,7 +138,9 @@ class MPowerDevice:
             pstr = "ports" if self.ports > 1 else "port"
             return f"{self.model} [{self._host}, {self.ports} {pstr}]"
 
-    async def request(self, method: str, url: str, data: dict = None) -> ClientResponse:
+    async def request(
+        self, method: str, url: str, data: dict | None = None
+    ) -> ClientResponse:
         """Session wrapper for general requests."""
         _url = self._url + url if url.startswith("/") else url
         resp = await self.session.request(
@@ -200,12 +202,12 @@ class MPowerDevice:
         return await resp.text()
 
     @property
-    def host(self) -> dict:
+    def host(self) -> str:
         """Return the device hostname."""
         return self._host
 
     @property
-    def data(self) -> dict:
+    def data(self) -> list[dict]:
         """Return device data."""
         return self._data
 
@@ -272,9 +274,9 @@ class MPowerDevice:
 class MPowerEntity:
     """mFi mPower entity baseclass."""
 
-    _device: MPowerDevice = None
-    _port: int = None
-    _data: dict = None
+    _device: MPowerDevice
+    _port: int
+    _data: dict
 
     def __init__(self, device: MPowerDevice, port: int) -> None:
         """Initialize the entity."""
