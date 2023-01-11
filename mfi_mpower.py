@@ -210,6 +210,11 @@ class MPowerDevice:
         """Return device data."""
         return self._data
 
+    @data.setter
+    def data(self, data: list[dict]) -> None:
+        """Update device data."""
+        self._data = data
+
     @property
     def ports(self) -> int:
         """Return number of available ports."""
@@ -298,8 +303,7 @@ class MPowerEntity:
     async def update(self) -> None:
         """Update entity data from device data."""
         await self._device.update()
-        data = self._device._data
-        self._data.update(data[self._port - 1])
+        self._data = self._device.data[self._port - 1]
 
     @property
     def device(self) -> MPowerDevice:
@@ -310,6 +314,11 @@ class MPowerEntity:
     def data(self) -> dict:
         """Return all entity data."""
         return self._data
+
+    @data.setter
+    def data(self, data: dict) -> None:
+        """Update entity data."""
+        self._data = data
 
     @property
     def port(self) -> int:
@@ -376,22 +385,24 @@ class MPowerSwitch(MPowerEntity):
         vals = ", ".join([f"{k}={getattr(self, k)}" for k in keys])
         return " ".join([str(self._device), f"Switch {self._port}: {vals}"])
 
-    async def set(self, output: bool) -> None:
+    async def set(self, output: bool, refresh: bool = True) -> None:
         """Set output to on/off."""
         await self._device.request(
             "POST", "/mfi/sensors.cgi", data={"id": self._port, "output": int(output)}
         )
+        if refresh:
+            await self.device.update()
 
-    async def turn_on(self) -> None:
+    async def turn_on(self, refresh: bool = True) -> None:
         """Turn output on."""
-        await self.set(True)
+        await self.set(True, refresh=refresh)
 
-    async def turn_off(self) -> None:
+    async def turn_off(self, refresh: bool = True) -> None:
         """Turn output off."""
-        await self.set(False)
+        await self.set(False, refresh=refresh)
 
-    async def toggle(self) -> None:
+    async def toggle(self, refresh: bool = True) -> None:
         """Toggle output."""
         await self.update()
         output = not bool(self._data["output"])
-        await self.set(output=output)
+        await self.set(output, refresh=refresh)
