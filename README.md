@@ -7,7 +7,7 @@ https://community.ui.com/questions/mPower-mFi-Switch-and-mFi-In-Wall-Outlet-HTTP
 ```python
 import asyncio
 
-from mfi_mpower import mFimPowerDevice
+from mfi_mpower import Device
 
 async def main():
 
@@ -17,7 +17,7 @@ async def main():
     use_ssl = True
     verify_ssl = True
 
-    async with mFimPowerDevice(host, username, password, use_ssl, verify_ssl) as device:
+    async with Device(host, username, password, use_ssl, verify_ssl) as device:
 
         # Show data for all ports
         print(await device.data)
@@ -42,7 +42,7 @@ asyncio.run(main())
 import aiohttp
 import asyncio
 
-from mfi_mpower import mFimPowerDevice
+from mfi_mpower import Device
 
 async def main():
 
@@ -53,7 +53,7 @@ async def main():
     verify_ssl = True
 
     async with aiohttp.ClientSession() as session:
-        async with mFimPowerDevice(host, username, password, use_ssl, verify_ssl, session) as device:
+        async with Device(host, username, password, use_ssl, verify_ssl, session) as device:
 
             # Show data for all ports
             print(await device.data)
@@ -70,4 +70,5 @@ async def main():
             # Toggle first port
             await device.toggle(1)
 
-asyncio.run(m
+asyncio.run(main())
+```
