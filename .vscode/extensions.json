@@ -1,0 +1,15 @@
+{
+    "recommendations": [
+        "esbenp.prettier-vscode",
+        "ms-python.isort",
+        "ms-python.vscode-pylance",
+        "ms-python.python",
+        "ms-vscode.powershell",
+        "ms-vscode-remote.remote-wsl",
+        "visualstudioexptteam.vscodeintellicode",
+        "redhat.vscode-yaml",
+        "streetsidesoftware.code-spell-checker",
+        "tamasfe.even-better-toml"
+    ]
+}
+  

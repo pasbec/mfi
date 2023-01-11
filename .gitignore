@@ -1,6 +1,5 @@
 # Editors
-.vscode/
-.idea/
+/.vscode/settings.json
 
 # Vagrant
 .vagrant/
