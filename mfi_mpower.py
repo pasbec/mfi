@@ -304,7 +304,7 @@ class MPowerDevice:
     def model(self) -> str:
         """Return the model name of this device as string."""
         ports = self.ports
-        prefix = "mFi mPower"
+        prefix = "mPower"
         suffix = " (EU)" if self._eu_model else ""
         if ports == 1:
             return f"{prefix} mini" + suffix
