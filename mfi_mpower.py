@@ -233,7 +233,7 @@ class MPowerDevice:
             return ""
 
     async def create_sensor(self, port: int) -> MPowerSensor:
-        """Factory method for single sensor."""
+        """Factory method for a single sensor."""
         await self.update()
         return MPowerSensor(self, port)
 
@@ -243,7 +243,7 @@ class MPowerDevice:
         return [MPowerSensor(self, i + 1) for i in range(self.ports)]
 
     async def create_switch(self, port: int) -> MPowerSwitch:
-        """Factory method for single switch."""
+        """Factory method for a single switch."""
         await self.update()
         return MPowerSwitch(self, port)
 
