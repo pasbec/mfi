@@ -283,13 +283,14 @@ class MPowerDevice:
     def model(self) -> str:
         """Return the model name of this device as string."""
         ports = self.ports
-        eu_tag = " (EU)" if self._eu_model else ""
+        prefix = "mFi mPower"
+        suffix = " (EU)" if self._eu_model else ""
         if ports == 1:
-            return "mPower mini" + eu_tag
+            return f"{prefix} mini" + suffix
         if ports == 3:
-            return "mPower" + eu_tag
+            return prefix + suffix
         if ports in [6, 8]:
-            return "mPower PRO" + eu_tag
+            return f"{prefix} PRO" + suffix
         return "Unknown"
 
     @property
