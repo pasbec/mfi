@@ -1,4 +1,4 @@
-# Asynchronous Python API for mFi (mPower) devices
+# Asynchronous Python API for mFi mPower devices
 
 ## Some API Description
 https://community.ui.com/questions/mPower-mFi-Switch-and-mFi-In-Wall-Outlet-HTTP-API/824c1c63-b7e6-44ed-b19a-f1d68cd07269

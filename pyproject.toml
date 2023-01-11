@@ -3,11 +3,11 @@ requires = ["setuptools", "aiohttp", "yarl"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "mfi"
+name = "mfi-mpower"
 version = "1.0.0"
-description = "Asynchronous Python API for mFi (mPower) devices"
+description = "Asynchronous Python API for mFi mPower devices"
 readme = "README.md"
-authors = [{ name = "P. Beckstein", email = "p.b-dev+mfi@mailbox.org" }]
+authors = [{ name = "P. Beckstein", email = "p.b-dev+mfi-mpower@mailbox.org" }]
 license = { file = "LICENSE" }
 classifiers = [
     "License :: OSI Approved :: MIT License",
