@@ -16,7 +16,7 @@ A brief description of the old "REST" API can be found in the [UI Community](htt
 
 To extract board information via SSH, only the `ssh-rsa` host key algorithm in combination with the `diffie-hellman-group1-sha1` key exchange is supported. The latter is available as [legacy option](http://www.openssh.com/legacy.html). There is also a [known bug](https://github.com/ronf/asyncssh/issues/263) in older Dropbear versions which truncates the list of offered key algorithms. The mFi mPower package therefore limits the offered key algorithms to `ssh-rsa` and the encryption algorithm to `aes128-cbc`. Known host checks will be [disabled](https://github.com/ronf/asyncssh/issues/132) as this would require user interaction.
 
-## Usage example
+## Basic example
 
 ```python
 import asyncio
@@ -38,27 +38,65 @@ async def main():
     async with aiohttp.ClientSession() as session:
         async with MPowerDevice(**data, session=session) as device:
 
+            # Turn port 1 off and toggle it afterwards back on
+            switch1 = await device.create_switch(1)
+            await switch1.set(False)
+            await asyncio.sleep(5)
+            await switch1.toggle()
+
+asyncio.run(main())
+```
+
+## Better example
+
+```python
+import asyncio
+import aiohttp
+
+from mfi_mpower.device import MPowerDevice
+
+async def query(host: str) -> None:
+    """Async query"""
+
+    data = {
+        "username": "ubnt",
+        "password": "ubnt",
+        "use_ssl": True,
+        "verify_ssl": False,
+        "board_info": None,
+    }
+
+    data["host"] = host
+
+    async with aiohttp.ClientSession() as session:
+        async with MPowerDevice(**data, session=session) as device:
+
             # Print device info
             print(device)
 
             # Print device board data
             print(device.board)
 
-            # Print all sensors and their data
-            sensors = await device.create_sensors()
-            for sensor in sensors:
-                print(sensor)
-
             # Print all switches and their state
             switches = await device.create_switches()
             for switch in switches:
                 print(switch)
 
-            # Turn port 1 off and toggle it afterwards back on
-            switch1 = await device.create_switch(1)
-            await switch1.set(False)
-            await asyncio.sleep(5)
-            await switch1.toggle()
+            # Print all sensors and their data
+            sensors = await device.create_sensors()
+            for sensor in sensors:
+                print(sensor)
+
+
+async def main() -> None:
+    """Async main"""
+
+    hosts = [
+        "host1", "host2", "host3",
+        "host4", "host5", "host6",
+    ]
+
+    await asyncio.gather(*[query(host) for host in hosts])
 
 asyncio.run(main())
 ```
