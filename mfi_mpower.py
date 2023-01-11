@@ -425,9 +425,9 @@ class MPowerSensor(MPowerEntity):
         vals = ", ".join([f"{k}={getattr(self, k)}" for k in keys])
         return f"{name}({host}, {vals})"
 
-    def _round(self, key: str) -> float:
+    def _round(self, key: str, scale: float = 1.0) -> float:
         """Round sensor value from key."""
-        return round(self._data[key], self.precision[key])
+        return round(scale * self._data[key], self.precision[key])
 
     @property
     def power(self) -> float:
@@ -447,7 +447,7 @@ class MPowerSensor(MPowerEntity):
     @property
     def powerfactor(self) -> float:
         """Return the output current factor ("real power" / "apparent power") [%]."""
-        return self._round("powerfactor")
+        return self._round("powerfactor", scale=100)
 
 
 class MPowerSwitch(MPowerEntity):
