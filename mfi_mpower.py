@@ -294,6 +294,11 @@ class MPowerEntity:
         self._data.update(data[self._port - 1])
 
     @property
+    def device(self) -> MPowerDevice:
+        """Entity device."""
+        return self._device
+
+    @property
     def data(self) -> dict:
         """Entity data."""
         return self._data
