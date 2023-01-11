@@ -44,7 +44,6 @@ push            = false
 [tool.bumpver.file_patterns]
 "pyproject.toml" = ['current_version = "{version}"', 'version = "{version}"']
 "src/mfi_mpower/__init__.py" = ['__version__ = "{version}"']
-"VERSION.txt" = ['{version}']
 
 [tool.black]
 target-version = ["py39", "py310"]
