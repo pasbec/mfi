@@ -28,7 +28,6 @@ class MPowerBoard:
         "known_hosts": None,
     }
 
-    _updated: bool = False
     _data: dict = {}
 
     def __init__(
@@ -69,7 +68,7 @@ class MPowerBoard:
 
     async def update(self) -> None:
         """Update board data."""
-        if not self._updated:
+        if not self._data:
             try:
                 async with asyncssh.connect(
                     host=self.host,

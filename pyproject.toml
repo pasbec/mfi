@@ -69,4 +69,4 @@ combine_as_imports = true
 # PyPI
 # > python -m build
 # > twine check dist/*
-# > twine upload --username __token__ dist/*
+# > twine upload --skip-existing --username __token__ dist/*

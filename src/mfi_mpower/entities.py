@@ -10,6 +10,7 @@ class MPowerEntity:
 
     _device: device.MPowerDevice
     _port: int
+
     _data: dict
 
     def __init__(

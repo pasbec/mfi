@@ -31,14 +31,14 @@ class MPowerDevice:
     password: str
     cache_time: float
 
-    _cookie: str
     _session: bool
     _ssl: bool | ssl.SSLContext
+
+    _cookie: str = f"AIROS_SESSIONID={''.join([str(randrange(9)) for i in range(32)])}"
 
     _board: MPowerBoard | None = None
     _board_error: MPowerSSHError | None = None
 
-    _updated: bool = False
     _authenticated: bool = False
     _time: float = time.time()
     _data: dict = {}
@@ -59,9 +59,6 @@ class MPowerDevice:
         self.username = username
         self.password = password
         self.cache_time = cache_time
-
-        self._cookie = "".join([str(randrange(9)) for i in range(32)])
-        self._cookie = f"AIROS_SESSIONID={self._cookie}"
 
         if session is None:
             self.session = ClientSession()
@@ -116,7 +113,7 @@ class MPowerDevice:
     @property
     def name(self) -> str:
         """Return the device name."""
-        if self._data:
+        if self.updated:
             try:
                 return self.hostname
             except Exception:  # pylint: disable=broad-except
@@ -206,7 +203,7 @@ class MPowerDevice:
 
     async def update(self) -> None:
         """Update sensor data."""
-        if not self._updated:
+        if self._board is None:
             try:
                 self._board = MPowerBoard(self)
                 await self._board.update()
