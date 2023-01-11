@@ -57,8 +57,8 @@ class MPowerDevice:
     _url: URL
     _username: str
     _password: str
-    _cache_time: float
     _eu_model: bool
+    _cache_time: float
 
     _cookie: str
     _session: bool
@@ -74,10 +74,10 @@ class MPowerDevice:
         host: str,
         username: str,
         password: str,
-        use_ssl: bool = True,
-        verify_ssl: bool = True,
-        cache_time: float = 0.0,
+        use_ssl: bool = False,
+        verify_ssl: bool = False,
         eu_model: bool = False,
+        cache_time: float = 0.0,
         session: ClientSession | None = None,
     ) -> None:
         """Initialize the device."""
@@ -85,8 +85,8 @@ class MPowerDevice:
         self._url = URL(f"https://{host}" if use_ssl else f"http://{host}")
         self._username = username
         self._password = password
-        self._cache_time = cache_time
         self._eu_model = eu_model
+        self._cache_time = cache_time
 
         self._cookie = "".join([str(randrange(9)) for i in range(32)])
         self._cookie = f"AIROS_SESSIONID={self._cookie}"
@@ -116,7 +116,7 @@ class MPowerDevice:
         """
         Delete the device.
 
-        This closes the async connection if necessary as proposed here:
+        This closes the async session if necessary as proposed here:
           https://stackoverflow.com/a/67577364/13613140
         """
         if self._session:
