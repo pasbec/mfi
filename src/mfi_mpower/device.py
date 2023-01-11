@@ -184,7 +184,7 @@ class MPowerDevice:
         #        - None, one attempt will be made (no raise)
         #        - False, no attempt will be made
         #       to update the board data!
-        if self._board_info is not False:
+        if not self._board.updated and self._board_info is not False:
             try:
                 self._board = MPowerBoard(self)
                 await self._board.update()
