@@ -169,13 +169,13 @@ class MPowerDevice:
         self, method: str, url: str | URL, data: dict | None = None
     ) -> ClientResponse:
         """Session wrapper for general requests."""
-        _url = URL(url)
-        if not _url.is_absolute():
-            _url = self.url / str(_url).lstrip("/")
+        url = URL(url)
+        if not url.is_absolute():
+            url = self.url / str(url).lstrip("/")
         try:
             resp = await self.session.request(
                 method=method,
-                url=_url,
+                url=url,
                 headers={"Cookie": self._cookie},
                 data=data,
                 ssl=self._ssl,
