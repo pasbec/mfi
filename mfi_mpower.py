@@ -377,6 +377,11 @@ class MPowerEntity:
         self._data = data
 
     @property
+    def unique_id(self) -> str:
+        """Return unique entity id from unique device id and port."""
+        return f"{self.device.unique_id}-{self.port}"
+
+    @property
     def port(self) -> int:
         """Return the port number (starting with 1)."""
         return int(self._port)
