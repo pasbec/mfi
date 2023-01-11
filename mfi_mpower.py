@@ -16,7 +16,7 @@ unless someone finds a way to replace the OpenSSL binary with a more recent vers
 A brief description of the old API can be found here:
     https://community.ui.com/questions/mPower-mFi-Switch-and-mFi-In-Wall-Outlet-HTTP-API/824c1c63-b7e6-44ed-b19a-f1d68cd07269
 
-Some additional "reverse enginering" was necessary to realize this API but there still seems no
+Some additional "reverse engineering" was necessary to realize this API but there still seems no
 way to extract board or device model information via HTTP (SSH would be an option though).
 
 Author: Pascal Beckstein, 2023
