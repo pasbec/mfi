@@ -410,6 +410,13 @@ class MPowerEntity:
 class MPowerSensor(MPowerEntity):
     """mFi mPower sensor representation."""
 
+    precision = {
+        "power": 1,
+        "current": 3,
+        "voltage": 1,
+        "powerfactor": 1,
+    }
+
     def __str__(self):
         """Represent this sensor as string."""
         name = __class__.__name__
@@ -418,25 +425,29 @@ class MPowerSensor(MPowerEntity):
         vals = ", ".join([f"{k}={getattr(self, k)}" for k in keys])
         return f"{name}({host}, {vals})"
 
+    def _round(self, key: str) -> float:
+        """Round sensor value from key."""
+        return round(self._data[key], self.precision[key])
+
     @property
     def power(self) -> float:
         """Return the output power [W]."""
-        return round(self._data["power"], 3)
+        return self._round("power")
 
     @property
     def current(self) -> float:
         """Return the output current [A]."""
-        return round(self._data["current"], 3)
+        return self._round("current")
 
     @property
     def voltage(self) -> float:
         """Return the output voltage [V]."""
-        return round(self._data["voltage"], 3)
+        return self._round("voltage")
 
     @property
     def powerfactor(self) -> float:
         """Return the output current factor ("real power" / "apparent power") [%]."""
-        return round(100 * self._data["powerfactor"], 1)
+        return self._round("powerfactor")
 
 
 class MPowerSwitch(MPowerEntity):
