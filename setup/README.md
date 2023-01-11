@@ -11,10 +11,10 @@ The setup script from here allows to change the _port names_, the _initial port 
 **Be ware that all modifications will per default be installed when `setup.py` is used!** They serve the following purpose:
 
 - **`certificate`**: Replaces the device certificate(s) and restart the web server. The corresponding files `key.pem`, `fullchain.pem`, `ca.pem`, `server.pem` must be available in the folder `mods/certificate`, otherwise the installation will simply do nothing.
-- **`cleanup`**: Make sure to cleanup all device stats after each reboot.
+- **`cleanup`**: Makes sure to cleanup old device stats after each reboot.
 - **`ledoff`**: Disables the device LED after some time.
-- **`nocontroller`**: Disables the device LED after some time as shown [here](https://github.com/magcode/mpower-tools/tree/master/nocontroller) and [here](https://community.ui.com/questions/mPower-default-outlet-state-on-boot-no-controller/390e5e67-44e8-4f94-a914-77d32380d6d1).
-- **`vpower`**: Helper to set initial port states. Without this the initial port states passe dto the script are lost after the next boot.
+- **`nocontroller`**: Makes the device stop waiting for the mFi Controller as shown [here](https://github.com/magcode/mpower-tools/tree/master/nocontroller) and [here](https://community.ui.com/questions/mPower-default-outlet-state-on-boot-no-controller/390e5e67-44e8-4f94-a914-77d32380d6d1). This is essential for Wi-Fi only devices like the mPower and mPower mini. Without this, the WLAN connection will be disconnected unexpectedly if WPA2 is used. Only a full power-cycle will help in that case.
+- **`vpower`**: Helper to set initial port states. Without this, initial port states from the script are lost after the next boot.
 
 **The installation of individual mods can currently only be skipped by modifying the script.**
 
