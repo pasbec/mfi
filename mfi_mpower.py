@@ -126,7 +126,7 @@ class MPowerDevice:
         await self.update()
         return self
 
-    async def __aexit__(self, *excinfo):
+    async def __aexit__(self, *kwargs):
         """Leave context manager scope."""
         await self.logout()
 
@@ -134,8 +134,8 @@ class MPowerDevice:
         """Represent this device as string."""
         if not self._data:
             return f"{self.model} ({self._host})"
-        pstr = "ports" if self.ports > 1 else "port"
-        return f"{self.model} [{self._host}, {self.ports} {pstr}]"
+        port_str = "ports" if self.ports > 1 else "port"
+        return f"{self.model} [{self._host}, {self.ports} {port_str}]"
 
     async def request(
         self, method: str, url: str, data: dict | None = None
