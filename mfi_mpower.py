@@ -19,11 +19,12 @@ A brief description of the old API can be found here:
 
 from __future__ import annotations
 
-from aiohttp import ClientSession, ClientResponse
 import asyncio
 from random import randrange
 import ssl
 import time
+
+from aiohttp import ClientResponse, ClientSession
 
 
 class BadResponse(Exception):
@@ -70,6 +71,7 @@ class MPowerDevice:
         eu_model: bool = False,
         session: ClientSession = None,
     ) -> None:
+        """Initialize the device."""
         self._host = host
         self._url = f"https://{host}" if use_ssl else f"http://{host}"
         self._username = username
@@ -103,6 +105,8 @@ class MPowerDevice:
 
     def __del__(self):
         """
+        Delete the device.
+
         This closes the async connection if necessary as proposed here:
           https://stackoverflow.com/a/67577364/13613140
         """
@@ -117,14 +121,17 @@ class MPowerDevice:
                 pass
 
     async def __aenter__(self):
+        """Enter context manager scope."""
         await self.login()
         await self.update()
         return self
 
     async def __aexit__(self, *excinfo):
+        """Leave context manager scope."""
         await self.logout()
 
     def __str__(self):
+        """Represent this device as string."""
         if not self._data:
             return f"{self.model} ({self._host})"
         else:
@@ -132,7 +139,7 @@ class MPowerDevice:
             return f"{self.model} [{self._host}, {self.ports} {pstr}]"
 
     async def request(self, method: str, url: str, data: dict = None) -> ClientResponse:
-        """General request method."""
+        """Session wrapper for general requests."""
         _url = self._url + url if url.startswith("/") else url
         resp = await self.session.request(
             method=method,
@@ -148,7 +155,7 @@ class MPowerDevice:
         return resp
 
     async def login(self) -> None:
-        """Login method."""
+        """Login to this device."""
         if not self._authenticated:
             try:
                 resp = await self.request(
@@ -167,14 +174,14 @@ class MPowerDevice:
             self._authenticated = True
 
     async def logout(self) -> None:
-        """Logout method."""
+        """Logout from this device."""
         if self._authenticated:
             await self.request("POST", "/logout.cgi")
 
             self._authenticated = False
 
     async def update(self) -> None:
-        """Update method for sensor data."""
+        """Update sensor data."""
         await self.login()
         if not self._data or (time.time() - self._time) > self._cache_time:
             resp = await self.request("GET", "/mfi/sensors.cgi")
@@ -187,34 +194,34 @@ class MPowerDevice:
 
     @property
     async def config(self) -> str:
-        """Configuration retrieval method."""
+        """Retrieve device configuration data."""
         await self.login()
         resp = await self.request("GET", "/cfg.cgi")
         return await resp.text()
 
     @property
     def host(self) -> dict:
-        """Device hostname."""
+        """Return the device hostname."""
         return self._host
 
     @property
     def data(self) -> dict:
-        """Device data."""
+        """Return device data."""
         return self._data
 
     @property
     def ports(self) -> int:
-        """Number of available ports for this device."""
+        """Return number of available ports."""
         return len(self._data)
 
     @property
     def eu_model(self) -> bool:
-        """True if this is a EU model with type F sockets."""
+        """Return whether this is a EU model with type F sockets."""
         return self._eu_model
 
     @property
     def model(self) -> str:
-        """Model of this device."""
+        """Return the model name of this device as string."""
         ports = self.ports
         eu = " (EU)" if self._eu_model else ""
         if ports == 1:
@@ -228,7 +235,7 @@ class MPowerDevice:
 
     @property
     def description(self) -> str:
-        """Model of this device."""
+        """Return the device description as string."""
         ports = self.ports
         if ports == 1:
             return "mFi Power Adapter with Wi-Fi"
@@ -242,22 +249,22 @@ class MPowerDevice:
             return ""
 
     async def create_sensor(self, port: int) -> MPowerSensor:
-        """Factory method for a single sensor."""
+        """Create a single sensor."""
         await self.update()
         return MPowerSensor(self, port)
 
     async def create_sensors(self) -> list[MPowerSensor]:
-        """Factory method for all sensors as list."""
+        """Create all sensors as list."""
         await self.update()
         return [MPowerSensor(self, i + 1) for i in range(self.ports)]
 
     async def create_switch(self, port: int) -> MPowerSwitch:
-        """Factory method for a single switch."""
+        """Create a single switch."""
         await self.update()
         return MPowerSwitch(self, port)
 
     async def create_switches(self) -> list[MPowerSwitch]:
-        """Factory method for all switch as list."""
+        """Create all switches as list."""
         await self.update()
         return [MPowerSwitch(self, i + 1) for i in range(self.ports)]
 
@@ -270,6 +277,7 @@ class MPowerEntity:
     _data: dict = None
 
     def __init__(self, device: MPowerDevice, port: int) -> None:
+        """Initialize the entity."""
         self._device = device
         self._port = port
 
@@ -285,47 +293,48 @@ class MPowerEntity:
             raise ValueError(f"Port number {port} is too large: 1-{ports}")
 
     def __str__(self):
+        """Represent this entity as string."""
         return " ".join([str(self._device), "Entity"])
 
     async def update(self) -> None:
-        """Update entity data."""
+        """Update entity data from device data."""
         await self._device.update()
         data = self._device._data
         self._data.update(data[self._port - 1])
 
     @property
     def device(self) -> MPowerDevice:
-        """Entity device."""
+        """Return the entity device."""
         return self._device
 
     @property
     def data(self) -> dict:
-        """Entity data."""
+        """Return all entity data."""
         return self._data
 
     @property
     def port(self) -> int:
-        """Port number (starting with 1)."""
+        """Return the port number (starting with 1)."""
         return int(self._port)
 
     @property
     def label(self) -> str:
-        """Label."""
+        """Return the entity label."""
         return str(self._data.get("label", f"Port {self._port}"))
 
     @property
     def output(self) -> bool:
-        """Output state."""
+        """Return the current output state."""
         return bool(self._data["output"])
 
     @property
     def relay(self) -> bool:
-        """Initial output state which is applied after device boot."""
+        """Return the initial output state which is applied after device boot."""
         return bool(self._data["relay"])
 
     @property
     def lock(self) -> bool:
-        """Output lock state which prevents switching if enabled."""
+        """Return the output lock state which prevents switching if enabled."""
         return bool(self._data["lock"])
 
 
@@ -333,28 +342,29 @@ class MPowerSensor(MPowerEntity):
     """mFi mPower sensor representation."""
 
     def __str__(self):
+        """Represent this sensor as string."""
         keys = ["label", "power", "current", "voltage", "powerfactor"]
         vals = ", ".join([f"{k}={getattr(self, k)}" for k in keys])
         return " ".join([str(self._device), f"Sensor {self._port}: {vals}"])
 
     @property
     def power(self) -> float:
-        """Output power [W]."""
+        """Return the output power [W]."""
         return float(self._data["power"])
 
     @property
     def current(self) -> float:
-        """Output current [A]."""
+        """Return the output current [A]."""
         return float(self._data["current"])
 
     @property
     def voltage(self) -> float:
-        """Output voltage [V]."""
+        """Return the output voltage [V]."""
         return float(self._data["voltage"])
 
     @property
     def powerfactor(self) -> float:
-        """Output current factor ("real power" / "apparent power") [1]."""
+        """Return the output current factor ("real power" / "apparent power") [1]."""
         return float(self._data["powerfactor"])
 
 
@@ -362,6 +372,7 @@ class MPowerSwitch(MPowerEntity):
     """mFi mPower switch representation."""
 
     def __str__(self):
+        """Represent this switch as string."""
         keys = ["label", "output", "relay", "lock"]
         vals = ", ".join([f"{k}={getattr(self, k)}" for k in keys])
         return " ".join([str(self._device), f"Switch {self._port}: {vals}"])
