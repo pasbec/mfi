@@ -261,7 +261,7 @@ class MPowerDevice:
         lan_hwaddr = self.lan_data.get("hwaddr", "")
         wlan_hwaddr = self.wlan_data.get("hwaddr", "")
         if lan_hwaddr and wlan_hwaddr:
-            return f"{lan_hwaddr}:{wlan_hwaddr}"
+            return f"{lan_hwaddr}-{wlan_hwaddr}"
         return ""
 
     @property
