@@ -30,6 +30,7 @@ import ssl
 import time
 
 from aiohttp import ClientResponse, ClientSession
+from yarl import URL
 
 
 class BadResponse(Exception):
@@ -52,7 +53,7 @@ class MPowerDevice:
     """mFi mPower device representation."""
 
     _host: str
-    _url: str
+    _url: URL
     _username: str
     _password: str
     _cache_time: float
@@ -78,7 +79,7 @@ class MPowerDevice:
     ) -> None:
         """Initialize the device."""
         self._host = host
-        self._url = f"https://{host}" if use_ssl else f"http://{host}"
+        self._url = URL(f"https://{host}" if use_ssl else f"http://{host}")
         self._username = username
         self._password = password
         self._cache_time = cache_time
@@ -146,14 +147,17 @@ class MPowerDevice:
         self, method: str, url: str, data: dict | None = None
     ) -> ClientResponse:
         """Session wrapper for general requests."""
-        _url = self._url + url if url.startswith("/") else url
-        resp = await self.session.request(
-            method=method,
-            url=_url,
-            data=data,
-            ssl=self._ssl,
-            chunked=None,
-        )
+        try:
+            resp = await self.session.request(
+                method=method,
+                url=self.url / url[1:] if url.startswith("/") else url,
+                data=data,
+                ssl=self._ssl,
+                chunked=None,
+            )
+        except Exception as exception:
+            self.__del__()  # pylint: disable=unnecessary-dunder-call
+            raise CannotConnect(str(exception)) from exception
 
         if resp.status != 200:
             raise BadResponse(f"Bad HTTP status code: {resp.status}")
@@ -163,15 +167,11 @@ class MPowerDevice:
     async def login(self) -> None:
         """Login to this device."""
         if not self._authenticated:
-            try:
-                resp = await self.request(
-                    "POST",
-                    "/login.cgi",
-                    data={"username": self._username, "password": self._password},
-                )
-            except Exception as exception:
-                self.__del__()  # pylint: disable=unnecessary-dunder-call
-                raise CannotConnect(str(exception)) from exception
+            resp = await self.request(
+                "POST",
+                "/login.cgi",
+                data={"username": self._username, "password": self._password},
+            )
 
             # NOTE: Successful login will *not* redirect back to /login.cgi
             if str(resp.url.path) == "/login.cgi":
@@ -199,6 +199,11 @@ class MPowerDevice:
                 raise UpdateError(f"Bad sensor update status: {status}")
             self._time = time.time()
             self._data = data
+
+    @property
+    def url(self) -> URL:
+        """Return device URL."""
+        return self._url
 
     @property
     def data(self) -> dict:
@@ -395,7 +400,7 @@ class MPowerEntity:
     @property
     def label(self) -> str:
         """Return the entity label."""
-        return str(self._data.get("label", f"Port {self._port}"))
+        return str(self._data.get("label", ""))
 
     @property
     def output(self) -> bool:
@@ -416,11 +421,11 @@ class MPowerEntity:
 class MPowerSensor(MPowerEntity):
     """mFi mPower sensor representation."""
 
-    precision = {
-        "power": 1,
-        "current": 3,
-        "voltage": 1,
-        "powerfactor": 1,
+    _precision = {
+        "power": None,
+        "current": None,
+        "voltage": None,
+        "powerfactor": None,
     }
 
     def __str__(self):
@@ -431,29 +436,38 @@ class MPowerSensor(MPowerEntity):
         vals = ", ".join([f"{k}={getattr(self, k)}" for k in keys])
         return f"{name}({host}, {vals})"
 
-    def _round(self, key: str, scale: float = 1.0) -> float:
-        """Round sensor value from key."""
-        return round(scale * self._data[key], self.precision[key])
+    def _value(self, key: str, scale: float = 1.0) -> float:
+        """Process sensor value with fallback to 0."""
+        value = scale * float(self._data.get(key, 0))
+        precision = self.precision.get(key, None)
+        if precision is not None:
+            return round(value, precision)
+        return value
+
+    @property
+    def precision(self) -> float:
+        """Return the precision dictionary."""
+        return self._precision
 
     @property
     def power(self) -> float:
         """Return the output power [W]."""
-        return self._round("power")
+        return self._value("power")
 
     @property
     def current(self) -> float:
         """Return the output current [A]."""
-        return self._round("current")
+        return self._value("current")
 
     @property
     def voltage(self) -> float:
         """Return the output voltage [V]."""
-        return self._round("voltage")
+        return self._value("voltage")
 
     @property
     def powerfactor(self) -> float:
         """Return the output current factor ("real power" / "apparent power") [%]."""
-        return self._round("powerfactor", scale=100)
+        return self._value("powerfactor", scale=100)
 
 
 class MPowerSwitch(MPowerEntity):
