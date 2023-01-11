@@ -24,7 +24,6 @@ import asyncio
 from random import randrange
 import ssl
 import time
-from typing import List
 
 
 class BadResponse(Exception):
@@ -43,7 +42,7 @@ class UpdateError(Exception):
     """Error to indicate that there was an update error."""
 
 
-class mPowerDevice:
+class MPowerDevice:
     """mFi mPower device representation."""
 
     _host: str = None
@@ -57,7 +56,7 @@ class mPowerDevice:
 
     _authenticated: bool = None
     _time: float = None
-    _data: List[dict] = None
+    _data: list[dict] = None
 
     def __init__(
         self,
@@ -124,10 +123,10 @@ class mPowerDevice:
 
     def __str__(self):
         if not self._data:
-            f"{self.model} ({self._host})"
+            return f"{self.model} ({self._host})"
         else:
             pstr = "ports" if self.ports > 1 else "port"
-        return f"{self.model} ({self._host}, {self.ports} {pstr})"
+            return f"{self.model} ({self._host}, {self.ports} {pstr})"
 
     async def request(self, method: str, url: str, data: dict = None) -> ClientResponse:
         """General request method."""
@@ -180,9 +179,8 @@ class mPowerDevice:
             status = json.get("status", None)
             if status != "success":
                 raise UpdateError(f"Bad sensor update status: {status}")
-            else:
-                self._time = time.time()
-                self._data = json["sensors"]
+            self._time = time.time()
+            self._data = json["sensors"]
 
     @property
     async def config(self) -> str:
@@ -234,39 +232,42 @@ class mPowerDevice:
         else:
             return ""
 
-    async def create_sensor(self, port: int) -> mPowerSensor:
+    async def create_sensor(self, port: int) -> MPowerSensor:
+        """Factory method for single sensor."""
         await self.update()
-        return mPowerSensor(self, port)
+        return MPowerSensor(self, port)
 
-    async def create_sensors(self) -> List[mPowerSensor]:
+    async def create_sensors(self) -> list[MPowerSensor]:
+        """Factory method for all sensors as list."""
         await self.update()
-        return [mPowerSensor(self, i + 1) for i in range(self.ports)]
+        return [MPowerSensor(self, i + 1) for i in range(self.ports)]
 
-    async def create_switch(self, port: int) -> mPowerSwitch:
+    async def create_switch(self, port: int) -> MPowerSwitch:
+        """Factory method for single switch."""
         await self.update()
-        return mPowerSwitch(self, port)
+        return MPowerSwitch(self, port)
 
-    async def create_switches(self) -> List[mPowerSwitch]:
+    async def create_switches(self) -> list[MPowerSwitch]:
+        """Factory method for all switch as list."""
         await self.update()
-        return [mPowerSwitch(self, i + 1) for i in range(self.ports)]
+        return [MPowerSwitch(self, i + 1) for i in range(self.ports)]
 
 
-class mPowerEntity:
+class MPowerEntity:
     """mFi mPower entity baseclass."""
 
-    _device: mPowerDevice = None
+    _device: MPowerDevice = None
     _port: int = None
     _data: dict = None
 
-    def __init__(self, device: mPowerDevice, port: int):
+    def __init__(self, device: MPowerDevice, port: int) -> None:
         self._device = device
         self._port = port
 
         data = self._device._data
         if not data:
-            raise ValueError(f"Device must be updated to create entity")
-        else:
-            self._data = self._device._data[self._port - 1]
+            raise ValueError("Device must be updated to create entity")
+        self._data = self._device._data[self._port - 1]
 
         ports = self._device.ports
         if port < 1:
@@ -275,7 +276,7 @@ class mPowerEntity:
             raise ValueError(f"Port number {port} is too large: 1-{ports}")
 
     def __str__(self):
-        return str(self._device) + f" Entity"
+        return " ".join([str(self._device), "Entity"])
 
     async def update(self) -> None:
         """Update entity data."""
@@ -314,13 +315,13 @@ class mPowerEntity:
         return bool(self._data["lock"])
 
 
-class mPowerSensor(mPowerEntity):
+class MPowerSensor(MPowerEntity):
     """mFi mPower sensor representation."""
 
     def __str__(self):
         keys = ["label", "power", "current", "voltage", "powerfactor"]
         vals = ", ".join([f"{k}={getattr(self, k)}" for k in keys])
-        return str(self._device) + f" Sensor {self._port}: {vals}"
+        return " ".join([str(self._device), f"Sensor {self._port}: {vals}"])
 
     @property
     def power(self) -> float:
@@ -343,20 +344,18 @@ class mPowerSensor(mPowerEntity):
         return float(self._data["powerfactor"])
 
 
-class mPowerSwitch(mPowerEntity):
+class MPowerSwitch(MPowerEntity):
     """mFi mPower switch representation."""
 
     def __str__(self):
         keys = ["label", "output", "relay", "lock"]
         vals = ", ".join([f"{k}={getattr(self, k)}" for k in keys])
-        return str(self._device) + f" Switch {self._port}: {vals}"
+        return " ".join([str(self._device), f"Switch {self._port}: {vals}"])
 
     async def set(self, output: bool) -> None:
         """Set output to on/off."""
         await self._device.request(
-            "POST",
-            "/mfi/sensors.cgi",
-            data={"id": self._port, "output": int(output)}
+            "POST", "/mfi/sensors.cgi", data={"id": self._port, "output": int(output)}
         )
 
     async def turn_on(self) -> None:
@@ -372,4 +371,3 @@ class mPowerSwitch(mPowerEntity):
         await self.update()
         output = not bool(self._data["output"])
         await self.set(output=output)
-
