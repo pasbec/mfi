@@ -1,0 +1,53 @@
+[build-system]
+requires = ["setuptools", "aiohttp", "yarl"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mfi"
+version = "1.0.0"
+description = "Asynchronous Python API for mFi (mPower) devices"
+readme = "README.md"
+authors = [{ name = "P. Beckstein", email = "p.b-dev+mfi@mailbox.org" }]
+license = { file = "LICENSE" }
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+]
+keywords = ["ubiquiti", "mfi", "mpower"]
+dependencies = [
+    "aiohttp",
+    "yarl",
+]
+requires-python = ">=3.9"
+
+[project.optional-dependencies]
+dev = ["black", "bumpver", "isort", "pip-tools", "pytest", "build", "twine"]
+
+[project.urls]
+Homepage = "https://github.com/pasbec/mfi"
+
+[tool.bumpver]
+current_version = "1.0.0"
+version_pattern = "MAJOR.MINOR.PATCH"
+commit_message  = "Bump version {old_version} -> {new_version}"
+commit          = true
+tag             = true
+push            = false
+
+[tool.bumpver.file_patterns]
+"pyproject.toml" = ['current_version = "{version}"', 'version = "{version}"']
+"src/mfi/__init__.py" = ['__version__ = "{version}"']
+"VERSION.txt" = ['{version}']
+
+# NOTES:
+#
+# pip install -e .[dev]
+#
+# pip-compile pyproject.toml
+# pip-sync
+#
+# bumpver update --minor --no-fetch --dry
+#
+# python -m build
+# twine check dist/*

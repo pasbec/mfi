@@ -1,4 +1,6 @@
 """
+mFi mPower
+
 Direct async API for Ubiquiti mFi mPower devices which are sadly EOL since 2015.
 
 Ubiquiti mFi mPower Devices use an ancient and unsecure OpenSSL version (1.0.0g 18 Jan 2012)
@@ -18,8 +20,6 @@ A brief description of the old API can be found here:
 
 Some additional "reverse engineering" was necessary to realize this API but there still seems no
 way to extract board or device model information via HTTP (SSH would be an option though).
-
-Author: Pascal Beckstein, 2023
 """
 from __future__ import annotations
 
