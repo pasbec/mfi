@@ -19,8 +19,11 @@ async def main():
 
     async with mFimPowerDevice(host, username, password, use_ssl, verify_ssl) as device:
 
-        # Show port data
+        # Show data for all ports
         print(await device.data)
+
+        # Show data for second port
+        print(await device.get(2))
 
         # Switch first port off
         await device.set(1, False)
@@ -52,8 +55,11 @@ async def main():
     async with aiohttp.ClientSession() as session:
         async with mFimPowerDevice(host, username, password, use_ssl, verify_ssl, session) as device:
 
-            # Show port data
+            # Show data for all ports
             print(await device.data)
+
+            # Show data for second port
+            print(await device.get(2))
 
             # Switch first port off
             await device.set(1, False)
