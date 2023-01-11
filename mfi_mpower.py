@@ -208,6 +208,11 @@ class MPowerDevice:
         return len(self._data)
 
     @property
+    def eu_model(self) -> bool:
+        """True if this is a EU model with type F sockets."""
+        return self._eu_model
+
+    @property
     def model(self) -> str:
         """Model of this device."""
         ports = self.ports
