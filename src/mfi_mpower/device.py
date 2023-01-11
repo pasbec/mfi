@@ -2,12 +2,12 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from random import randrange
 import ssl
 import time
 
 import aiohttp
-from aiohttp import ClientResponse, ClientSession
 from yarl import URL
 
 from .board import MPowerBoard
@@ -31,8 +31,10 @@ class MPowerDevice:
     password: str
     cache_time: float
 
-    _session: bool
-    _ssl: bool | ssl.SSLContext
+    _ssl: ssl.SSLContext | bool
+
+    _session_owned: bool
+    _session: aiohttp.ClientSession | None
 
     _cookie: str = f"AIROS_SESSIONID={''.join([str(randrange(9)) for i in range(32)])}"
 
@@ -51,7 +53,7 @@ class MPowerDevice:
         use_ssl: bool = False,
         verify_ssl: bool = False,
         cache_time: float = 0.0,
-        session: ClientSession | None = None,
+        session: aiohttp.ClientSession | None = None,
     ) -> None:
         """Initialize the device."""
         self.host = host
@@ -61,11 +63,11 @@ class MPowerDevice:
         self.cache_time = cache_time
 
         if session is None:
-            self.session = ClientSession()
-            self._session = True
+            self._session_owned = True
+            self._session = None
         else:
-            self.session = session
-            self._session = False
+            self._session_owned = False
+            self._session = session
 
         # NOTE: Ubiquiti mFi mPower Devices with firmware 2.1.11 use OpenSSL 1.0.0g (18 Jan 2012)
         if use_ssl:
@@ -76,30 +78,13 @@ class MPowerDevice:
         else:
             self._ssl = False
 
-    def __del__(self):
-        """
-        Delete the device.
-
-        This closes the async session if necessary as proposed here:
-          https://stackoverflow.com/a/67577364/13613140
-        """
-        if self._session:
-            try:
-                loop = asyncio.get_event_loop()
-                if loop.is_running():
-                    loop.create_task(self.session.close())
-                else:
-                    loop.run_until_complete(self.session.close())
-            except Exception:  # pylint: disable=broad-except
-                pass
-
-    async def __aenter__(self):
+    async def __aenter__(self) -> MPowerDevice:
         """Enter context manager scope."""
         await self.login()
         await self.update()
         return self
 
-    async def __aexit__(self, *kwargs):
+    async def __aexit__(self, *kwargs) -> None:
         """Leave context manager scope."""
         await self.logout()
 
@@ -146,20 +131,32 @@ class MPowerDevice:
 
     async def request(
         self, method: str, url: str | URL, data: dict | None = None
-    ) -> ClientResponse:
+    ) -> str:
         """Session wrapper for general requests."""
         url = URL(url)
         if not url.is_absolute():
             url = self.url / str(url).lstrip("/")
         try:
-            resp = await self.session.request(
+            async with self._session.request(
                 method=method,
                 url=url,
                 headers={"Cookie": self._cookie},
                 data=data,
                 ssl=self._ssl,
                 chunked=None,
-            )
+            ) as resp:
+                if resp.status != 200:
+                    raise MPowerAPIReadError(
+                        f"Received bad HTTP status code from device {self.name}: {resp.status}"
+                    )
+
+                # NOTE: Un-authorized request will redirect to /login.cgi
+                if str(resp.url.path) == "/login.cgi":
+                    self._authenticated = False
+                else:
+                    self._authenticated = True
+
+                return await resp.text()
         except aiohttp.ClientSSLError as exc:
             raise MPowerAPIConnError(
                 f"Could not verify SSL certificate of device {self.name}: {exc}"
@@ -169,21 +166,10 @@ class MPowerDevice:
                 f"Connection to device {self.name} failed: {exc}"
             ) from exc
 
-        if resp.status != 200:
-            raise MPowerAPIReadError(
-                f"Received bad HTTP status code from device {self.name}: {resp.status}"
-            )
-
-        # NOTE: Un-authorized request will redirect to /login.cgi
-        if str(resp.url.path) == "/login.cgi":
-            self._authenticated = False
-        else:
-            self._authenticated = True
-
-        return resp
-
     async def login(self) -> None:
         """Login to this device."""
+        if self._session_owned and self._session is None:
+            self._session = aiohttp.ClientSession()
         if not self._authenticated:
             await self.request(
                 "POST",
@@ -200,6 +186,9 @@ class MPowerDevice:
         """Logout from this device."""
         if self._authenticated:
             await self.request("POST", "/logout.cgi")
+        if self._session_owned:
+            await self._session.close()
+            self._session = None
 
     async def update(self) -> None:
         """Update sensor data."""
@@ -213,12 +202,12 @@ class MPowerDevice:
 
         if not self._data or (time.time() - self._time) > self.cache_time:
             await self.login()
-            resp_status = await self.request("GET", "/status.cgi")
-            resp_sensors = await self.request("GET", "/mfi/sensors.cgi")
+            text_status = await self.request("GET", "/status.cgi")
+            text_sensors = await self.request("GET", "/mfi/sensors.cgi")
 
             try:
-                data = await resp_status.json()
-                data.update(await resp_sensors.json())
+                data = json.loads(text_status)
+                data.update(json.loads(text_sensors))
             except aiohttp.ContentTypeError as exc:
                 raise MPowerAPIDataError(
                     f"Received invalid data from device {self.name}: {exc}"
