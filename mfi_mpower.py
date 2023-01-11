@@ -188,7 +188,7 @@ class MPowerDevice:
             ) from exc
         except aiohttp.ClientError as exc:
             raise CannotConnect(
-                f"Connection to device device {self.host} failed: {exc}"
+                f"Connection to device {self.host} failed: {exc}"
             ) from exc
 
         if resp.status != 200:
