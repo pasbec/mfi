@@ -29,12 +29,9 @@ from random import randrange
 import ssl
 import time
 
+import aiohttp
 from aiohttp import ClientResponse, ClientSession
 from yarl import URL
-
-
-class BadResponse(Exception):
-    """Error to indicate we got a response status != 200."""
 
 
 class CannotConnect(Exception):
@@ -45,8 +42,12 @@ class InvalidAuth(Exception):
     """Error to indicate there is invalid auth."""
 
 
-class UpdateError(Exception):
-    """Error to indicate that there was an update error."""
+class InvalidResponse(Exception):
+    """Error to indicate we received an invalid http status."""
+
+
+class InvalidData(Exception):
+    """Error to indicate we received invalid device data."""
 
 
 class MPowerDevice:
@@ -59,9 +60,11 @@ class MPowerDevice:
     _cache_time: float
     _eu_model: bool
 
+    _cookie: str
     _session: bool
     _ssl: bool | ssl.SSLContext
 
+    _updated: bool
     _authenticated: bool
     _time: float
     _data: dict
@@ -85,15 +88,14 @@ class MPowerDevice:
         self._cache_time = cache_time
         self._eu_model = eu_model
 
-        cookie = "".join([str(randrange(9)) for i in range(32)])
-        cookie = f"AIROS_SESSIONID={cookie}"
+        self._cookie = "".join([str(randrange(9)) for i in range(32)])
+        self._cookie = f"AIROS_SESSIONID={self._cookie}"
 
         if session is None:
-            self.session = ClientSession(headers={"Cookie": cookie})
+            self.session = ClientSession()
             self._session = True
         else:
             self.session = session
-            session.headers.add("Cookie", cookie)
             self._session = False
 
         if use_ssl:
@@ -105,6 +107,7 @@ class MPowerDevice:
         else:
             self._ssl = False
 
+        self._updated = False
         self._authenticated = False
         self._time = time.time()
         self._data = {}
@@ -143,6 +146,26 @@ class MPowerDevice:
         vals = ", ".join([f"{k}={getattr(self, k)}" for k in keys])
         return f"{name}({vals})"
 
+    @property
+    def url(self) -> URL:
+        """Return device URL."""
+        return self._url
+
+    @property
+    def host(self) -> str:
+        """Return device host."""
+        return self._host
+
+    @property
+    def eu_model(self) -> bool:
+        """Return whether this device is a EU model with type F sockets."""
+        return self._eu_model
+
+    @property
+    def manufacturer(self) -> str:
+        """Return the device manufacturer."""
+        return "Ubiquiti"
+
     async def request(
         self, method: str, url: str | URL, data: dict | None = None
     ) -> ClientResponse:
@@ -154,71 +177,95 @@ class MPowerDevice:
             resp = await self.session.request(
                 method=method,
                 url=_url,
+                headers={"Cookie": self._cookie},
                 data=data,
                 ssl=self._ssl,
                 chunked=None,
             )
-        except Exception as exc:
-            self.__del__()  # pylint: disable=unnecessary-dunder-call
+        except asyncio.CancelledError as exc:
+            raise asyncio.CancelledError(
+                f"Request to device {self.hostname} was cancelled",
+            ) from exc
+        except asyncio.TimeoutError as exc:
+            raise asyncio.TimeoutError(
+                f"Request to device {self.hostname} timed out"
+            ) from exc
+        except aiohttp.ClientSSLError as exc:
             raise CannotConnect(
-                f"Connection to device {self.hostname} failed: {exc}"
+                f"Could not verify SSL certificate of device {self.hostname}"
+            ) from exc
+        except aiohttp.ClientError as exc:
+            raise CannotConnect(
+                f"Connection to device device {self.hostname} failed"
             ) from exc
 
         if resp.status != 200:
-            raise BadResponse(
+            raise InvalidResponse(
                 f"Received bad HTTP status code from device {self.hostname}: {resp.status}"
             )
+
+        # NOTE: Un-authorized request will redirect to /login.cgi
+        if str(resp.url.path) == "/login.cgi":
+            self._authenticated = False
+        else:
+            self._authenticated = True
 
         return resp
 
     async def login(self) -> None:
         """Login to this device."""
         if not self._authenticated:
-            resp = await self.request(
+            await self.request(
                 "POST",
                 "/login.cgi",
                 data={"username": self._username, "password": self._password},
             )
 
-            # NOTE: Successful login will *not* redirect back to /login.cgi
-            if str(resp.url.path) == "/login.cgi":
+            if not self._authenticated:
                 raise InvalidAuth(
                     f"Login to device {self.hostname} failed due to wrong credentials"
                 )
-
-            self._authenticated = True
 
     async def logout(self) -> None:
         """Logout from this device."""
         if self._authenticated:
             await self.request("POST", "/logout.cgi")
 
-            self._authenticated = False
-
     async def update(self) -> None:
         """Update sensor data."""
         await self.login()
+
         if not self._data or (time.time() - self._time) > self._cache_time:
-            resp = await self.request("GET", "/status.cgi")
-            data = await resp.json()
-            resp = await self.request("GET", "/mfi/sensors.cgi")
-            data.update(await resp.json())
+            resp_status = await self.request("GET", "/status.cgi")
+            resp_sensors = await self.request("GET", "/mfi/sensors.cgi")
+
+            try:
+                data = await resp_status.json()
+                data.update(await resp_sensors.json())
+            except aiohttp.ContentTypeError as exc:
+                raise InvalidData(
+                    f"Received invalid data from device {self.hostname}"
+                ) from exc
+
             status = data.get("status", None)
             if status != "success":
-                raise UpdateError(
-                    f"Received bad sensor update status from device {self.hostname}: {status}"
+                raise InvalidData(
+                    f"Received invalid sensor update status from device {self.hostname}: {status}"
                 )
+
             self._time = time.time()
             self._data = data
 
     @property
-    def url(self) -> URL:
-        """Return device URL."""
-        return self._url
+    def updated(self) -> bool:
+        """Return if the device has already been updated."""
+        return bool(self._data)
 
     @property
     def data(self) -> dict:
         """Return device data."""
+        if not self._data:
+            raise InvalidData(f"Device {self.hostname} must be updated first")
         return self._data
 
     @data.setter
@@ -228,32 +275,32 @@ class MPowerDevice:
 
     @property
     def host_data(self) -> dict:
-        """Return the host data."""
+        """Return the device host data."""
         return self.data.get("host", {})
 
     @property
     def fwversion(self) -> str:
-        """Return the host firmware version."""
+        """Return the device host firmware version."""
         return self.host_data.get("fwversion", "")
 
     @property
     def hostname(self) -> str:
-        """Return the host name."""
+        """Return the device host name."""
         return self.host_data.get("hostname", self._host)
 
     @property
     def lan_data(self) -> dict:
-        """Return the LAN data."""
+        """Return the device LAN data."""
         return self.data.get("lan", {})
 
     @property
     def wlan_data(self) -> dict:
-        """Return the WLAN data."""
+        """Return the device WLAN data."""
         return self.data.get("wlan", {})
 
     @property
     def ip(self) -> str:
-        """Return the IP address from LAN if connected, else from WLAN."""
+        """Return the device IP address from LAN if connected, else from WLAN."""
         lan_connected = self.lan_data.get("status", "") != "Unplugged"
         if lan_connected:
             ip = self.lan_data.get("ip", "")
@@ -263,7 +310,7 @@ class MPowerDevice:
 
     @property
     def hwaddr(self) -> str:
-        """Return the hardware address from LAN if connected, else from WLAN."""
+        """Return the device hardware address from LAN if connected, else from WLAN."""
         lan_connected = self.lan_data.get("status", "") != "Unplugged"
         if lan_connected:
             hwaddr = self.lan_data.get("hwaddr", "")
@@ -273,7 +320,7 @@ class MPowerDevice:
 
     @property
     def unique_id(self) -> str:
-        """Return unique device id from combined LAN/WLAN hardware addresses."""
+        """Return a unique device id from combined LAN/WLAN hardware addresses."""
         lan_hwaddr = self.lan_data.get("hwaddr", "")
         wlan_hwaddr = self.wlan_data.get("hwaddr", "")
         if lan_hwaddr and wlan_hwaddr:
@@ -282,23 +329,13 @@ class MPowerDevice:
 
     @property
     def port_data(self) -> list[dict]:
-        """Return the port data."""
+        """Return the device port data."""
         return self.data.get("sensors", [])
 
     @property
     def ports(self) -> int:
-        """Return number of available ports."""
+        """Return the number of available device ports."""
         return len(self.port_data)
-
-    @property
-    def manufacturer(self) -> str:
-        """Return the device manufacturer."""
-        return "Ubiquiti"
-
-    @property
-    def eu_model(self) -> bool:
-        """Return whether this is a EU model with type F sockets."""
-        return self._eu_model
 
     @property
     def model(self) -> str:
@@ -330,22 +367,26 @@ class MPowerDevice:
 
     async def create_sensor(self, port: int) -> MPowerSensor:
         """Create a single sensor."""
-        await self.update()
+        if not self.updated:
+            await self.update()
         return MPowerSensor(self, port)
 
     async def create_sensors(self) -> list[MPowerSensor]:
         """Create all sensors as list."""
-        await self.update()
+        if not self.updated:
+            await self.update()
         return [MPowerSensor(self, i + 1) for i in range(self.ports)]
 
     async def create_switch(self, port: int) -> MPowerSwitch:
         """Create a single switch."""
-        await self.update()
+        if not self.updated:
+            await self.update()
         return MPowerSwitch(self, port)
 
     async def create_switches(self) -> list[MPowerSwitch]:
         """Create all switches as list."""
-        await self.update()
+        if not self.updated:
+            await self.update()
         return [MPowerSwitch(self, i + 1) for i in range(self.ports)]
 
 
@@ -361,10 +402,9 @@ class MPowerEntity:
         self._device = device
         self._port = port
 
-        if not device.port_data:
-            raise ValueError(
-                f"Device {device.hostname} must be updated once before creating entities"
-            )
+        if not device.updated:
+            raise InvalidData(f"Device {device.hostname} must be updated first")
+
         self._data = device.port_data[self._port - 1]
 
         if port < 1:
@@ -504,7 +544,7 @@ class MPowerSwitch(MPowerEntity):
             "POST", "/mfi/sensors.cgi", data={"id": self._port, "output": int(output)}
         )
         if refresh:
-            await self.device.update()
+            await self.update()
 
     async def turn_on(self, refresh: bool = True) -> None:
         """Turn output on."""
