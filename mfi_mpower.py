@@ -50,6 +50,7 @@ class MPowerDevice:
     _username: str = None
     _password: str = None
     _cache_time: float = None
+    _eu_model: bool = None
 
     _session = None
     _ssl = None
@@ -66,6 +67,7 @@ class MPowerDevice:
         use_ssl: bool = True,
         verify_ssl: bool = True,
         cache_time: float = 0.0,
+        eu_model: bool = False,
         session: ClientSession = None,
     ) -> None:
         self._host = host
@@ -73,6 +75,7 @@ class MPowerDevice:
         self._username = username
         self._password = password
         self._cache_time = cache_time
+        self._eu_model = eu_model
 
         cookie = "".join([str(randrange(9)) for i in range(32)])
         cookie = f"AIROS_SESSIONID={cookie}"
@@ -126,7 +129,7 @@ class MPowerDevice:
             return f"{self.model} ({self._host})"
         else:
             pstr = "ports" if self.ports > 1 else "port"
-            return f"{self.model} ({self._host}, {self.ports} {pstr})"
+            return f"{self.model} [{self._host}, {self.ports} {pstr}]"
 
     async def request(self, method: str, url: str, data: dict = None) -> ClientResponse:
         """General request method."""
@@ -153,9 +156,9 @@ class MPowerDevice:
                     "/login.cgi",
                     data={"username": self._username, "password": self._password},
                 )
-            except Exception as exc:
+            except Exception as exception:
                 self.__del__()  # pylint: disable=unnecessary-dunder-call
-                raise CannotConnect(str(exc)) from exc
+                raise CannotConnect(str(exception)) from exception
 
             # NOTE: Successful login will redirect to /power
             if not str(resp.url).endswith("/power"):
@@ -208,12 +211,13 @@ class MPowerDevice:
     def model(self) -> str:
         """Model of this device."""
         ports = self.ports
+        eu = " (EU)" if self._eu_model else ""
         if ports == 1:
-            return "mPower mini"
+            return "mPower mini" + eu
         elif ports == 3:
-            return "mPower"
+            return "mPower" + eu
         elif ports == 6 or ports == 8:
-            return "mPower PRO"
+            return "mPower PRO" + eu
         else:
             return "Unknown"
 
