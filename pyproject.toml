@@ -64,7 +64,9 @@ combine_as_imports = true
 # > pip-sync
 
 # Versioning
+# > bumpver update --major --no-fetch --dry
 # > bumpver update --minor --no-fetch --dry
+# > bumpver update --patch --no-fetch --dry
 
 # PyPI
 # > python -m build
