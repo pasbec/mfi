@@ -40,14 +40,18 @@ push            = false
 "src/mfi/__init__.py" = ['__version__ = "{version}"']
 "VERSION.txt" = ['{version}']
 
-# NOTES:
-#
-# pip install -e .[dev]
-#
-# pip-compile pyproject.toml
-# pip-sync
-#
-# bumpver update --minor --no-fetch --dry
-#
-# python -m build
-# twine check dist/*
+
+# Local install
+# > pip install -e .[dev]
+
+# Requirements
+# > pip-compile pyproject.toml
+# > pip-sync
+
+# Versioning
+# > bumpver update --minor --no-fetch --dry
+
+# PyPI
+# > python -m build
+# > twine check dist/*
+
