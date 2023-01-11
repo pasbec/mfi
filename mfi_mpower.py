@@ -173,8 +173,8 @@ class MPowerDevice:
                 self.__del__()  # pylint: disable=unnecessary-dunder-call
                 raise CannotConnect(str(exception)) from exception
 
-            # NOTE: Successful login will redirect to /power
-            if not str(resp.url).endswith("/power"):
+            # NOTE: Successful login will *not* redirect back to /login.cgi
+            if str(resp.url.path) == "/login.cgi":
                 raise InvalidAuth("Login failed due to wrong credentials")
 
             self._authenticated = True
