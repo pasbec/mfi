@@ -60,7 +60,8 @@ combine_as_imports = true
 
 # Git Completion on Windows with PowerShell
 # > PowerShellGet\Install-Module posh-git -Scope CurrentUser -Force
-# > Import-Module posh-git
+# > Add-PoshGitToProfile
+# > Remove-PoshGitFromProfile
 
 # Local install
 # > pip install -e .[dev]
