@@ -275,6 +275,11 @@ class MPowerDevice:
         return len(self.port_data)
 
     @property
+    def manufacturer(self) -> str:
+        """Return the device manufacturer."""
+        return "Ubiquiti"
+
+    @property
     def eu_model(self) -> bool:
         """Return whether this is a EU model with type F sockets."""
         return self._eu_model
