@@ -11,28 +11,25 @@ from mfi_mpower import Device
 
 async def main():
 
-    host = "mympower"
-    username = "admin"
-    password = "correcthorsebatterystaple"
-    use_ssl = True
-    verify_ssl = True
+    data = {
+        "host": "mympower",
+        "username": "admin",
+        "password": "correcthorsebatterystaple",
+        "use_ssl": True,
+        "verify_ssl": True,
+    }
 
-    async with Device(host, username, password, use_ssl, verify_ssl) as device:
+    async with Device(**data) as device:
 
-        # Show data for all ports
-        print(await device.data)
+        print(device)
 
-        # Show data for second port
-        print(await device.get(2))
+        sensors = await device.create_sensors()
+        for sensor in sensors:
+            print(sensor)
 
-        # Switch first port off
-        await device.set(1, False)
-        
-        # Sleep 5 seconds
-        await asyncio.sleep(5)
-
-        # Toggle first port
-        await device.toggle(1)
+        switches = await device.create_switches()
+        for switch in switches:
+            print(switch)
 
 asyncio.run(main())
 ```
@@ -46,29 +43,23 @@ from mfi_mpower import Device
 
 async def main():
 
-    host = "mympower"
-    username = "admin"
-    password = "correcthorsebatterystaple"
-    use_ssl = True
-    verify_ssl = True
+    data = {
+        "host": "mympower",
+        "username": "admin",
+        "password": "correcthorsebatterystaple",
+        "use_ssl": True,
+        "verify_ssl": True,
+    }
 
     async with aiohttp.ClientSession() as session:
-        async with Device(host, username, password, use_ssl, verify_ssl, session) as device:
+        async with Device(**data, session=session) as device:
 
-            # Show data for all ports
-            print(await device.data)
+            print(await device.create_sensor(1))
 
-            # Show data for second port
-            print(await device.get(2))
-
-            # Switch first port off
-            await device.set(1, False)
-            
-            # Sleep 5 seconds
+            switch1 = await device.create_switch(1)
+            await switch1.set(False)
             await asyncio.sleep(5)
-
-            # Toggle first port
-            await device.toggle(1)
+            await switch1.toggle()
 
 asyncio.run(main())
 ```

@@ -1,13 +1,34 @@
-from aiohttp import ClientSession
+"""
+Async API for Ubiquiti mFi mPower devices which are sadly EOL since 2015.
+
+Ubiquiti mFi mPower Devices use an ancient and unsecure OpenSSL version (1.0.0g 18 Jan 2012)
+even with the latest available mFi firmware 2.1.11 from here:
+    https://www.ui.com/download/mfi/mpower
+
+SLL connections are therefore limited to TLSv1.0. The ciphers were constraint to AES256-SHA,
+AES128-SHA or SEED-SHA to enforce 2048 bit strength and avoid DES and RC4. This results in the
+highest possible rating according to the nmap enum-cipher-script which is documented here:
+    https://nmap.org/nsedoc/scripts/ssl-enum-ciphers.html
+
+Be aware that SSL is only supported until TLSv1.0 is eventually removed from Python - at least
+unless someone finds a way to replace OpenSSL with a more recent version until then.
+
+A brief description of the old API can be found here:
+    https://community.ui.com/questions/mPower-mFi-Switch-and-mFi-In-Wall-Outlet-HTTP-API/824c1c63-b7e6-44ed-b19a-f1d68cd07269
+"""
+
+from __future__ import annotations
+
+from aiohttp import ClientSession, ClientResponse
 import asyncio
 from random import randrange
 import ssl
 import time
-from yarl import URL
+from typing import List
 
 
 class BadResponse(Exception):
-    """Error to indicate we got a response statue != 200."""
+    """Error to indicate we got a response status != 200."""
 
 
 class CannotConnect(Exception):
@@ -18,38 +39,25 @@ class InvalidAuth(Exception):
     """Error to indicate there is invalid auth."""
 
 
-class Device:
-    """
-    Async API for Ubiquiti mFi mPower devices which are sadly EOL since 2015.
+class UpdateError(Exception):
+    """Error to indicate that there was an update error."""
 
-    Ubiquiti mFi mPower Devices use an ancient and unsecure OpenSSL version (1.0.0g 18 Jan 2012)
-    even with the latest available mFi firmware 2.1.11 from here:
-      https://www.ui.com/download/mfi/mpower
 
-    SLL connections are therefore limited to TLSv1.0. The ciphers were constraint to AES256-SHA,
-    AES128-SHA or SEED-SHA to enforce 2048 bit strength and avoid DES and RC4. This results in the
-    highest possible rating according to the nmap enum-cipher-script which is documented here:
-      https://nmap.org/nsedoc/scripts/ssl-enum-ciphers.html
+class mPowerDevice:
+    """mFi mPower device representation."""
 
-    Be aware that SSL is only supported until TLSv1.0 is eventually removed from Python - at least
-    unless someone finds a way to replace OpenSSL with a more recent version until then.
+    _host: str = None
+    _url: str = None
+    _username: str = None
+    _password: str = None
+    _cache_time: float = None
 
-    A brief description of the old API can be found here:
-      https://community.ui.com/questions/mPower-mFi-Switch-and-mFi-In-Wall-Outlet-HTTP-API/824c1c63-b7e6-44ed-b19a-f1d68cd07269
-    """
-
-    _cookie = None
     _session = None
-    _authenticated = None
-    _time = None
-    _data = None
+    _ssl = None
 
-    async def __aenter__(self):
-        await self.login()
-        return self
-
-    async def __aexit__(self, *excinfo):
-        await self.logout()
+    _authenticated: bool = None
+    _time: float = None
+    _data: List[dict] = None
 
     def __init__(
         self,
@@ -58,44 +66,41 @@ class Device:
         password: str,
         use_ssl: bool = True,
         verify_ssl: bool = True,
-        cache_time: int = 0,
+        cache_time: float = 0.0,
         session: ClientSession = None,
     ) -> None:
-        """Initialize mFi mPower device object."""
-        self._cookie = "AIROS_SESSIONID=" + "".join([str(randrange(9)) for i in range(32)])
+        self._host = host
+        self._url = f"https://{host}" if use_ssl else f"http://{host}"
+        self._username = username
+        self._password = password
+        self._cache_time = cache_time
+
+        cookie = "".join([str(randrange(9)) for i in range(32)])
+        cookie = f"AIROS_SESSIONID={cookie}"
 
         if session is None:
-            self.session = ClientSession(headers={"Cookie": self._cookie})
+            self.session = ClientSession(headers={"Cookie": cookie})
             self._session = True
         else:
             self.session = session
-            session.headers.add("Cookie", self._cookie)
+            session.headers.add("Cookie", cookie)
             self._session = False
-
-        self._authenticated = False
-        self._time = time.time()
-
-        self.host = host
-        self.username = username
-        self.password = password
 
         if use_ssl:
             # NOTE: Ubiquiti mFi mPower Devices only support SSLv3 and TLSv1.0
-            self.ssl = ssl.SSLContext(ssl.PROTOCOL_TLSv1)
-            self.ssl.set_ciphers("AES256-SHA:AES128-SHA:SEED-SHA")
-            self.ssl.load_default_certs()
-            self.ssl.verify_mode = ssl.CERT_REQUIRED if verify_ssl else ssl.CERT_NONE
-            self.session._base_url = URL(f"https://{self.host}")
+            self._ssl = ssl.SSLContext(ssl.PROTOCOL_TLSv1)
+            self._ssl.set_ciphers("AES256-SHA:AES128-SHA:SEED-SHA")
+            self._ssl.load_default_certs()
+            self._ssl.verify_mode = ssl.CERT_REQUIRED if verify_ssl else ssl.CERT_NONE
         else:
-            self.ssl = False
-            self.session._base_url = URL(f"http://{self.host}")
+            self._ssl = False
 
-        self.cache_time = cache_time
+        self._authenticated = False
+        self._time = time.time()
+        self._data = []
 
     def __del__(self):
         """
-        Delete mFi mPower device object.
-
         This closes the async connection if necessary as proposed here:
           https://stackoverflow.com/a/67577364/13613140
         """
@@ -109,23 +114,49 @@ class Device:
             except Exception:  # pylint: disable=broad-except
                 pass
 
+    async def __aenter__(self):
+        await self.login()
+        await self.update()
+        return self
+
+    async def __aexit__(self, *excinfo):
+        await self.logout()
+
+    def __str__(self):
+        if not self._data:
+            f"{self.model} ({self._host})"
+        else:
+            pstr = "ports" if self.ports > 1 else "port"
+        return f"{self.model} ({self._host}, {self.ports} {pstr})"
+
+    async def request(self, method: str, url: str, data: dict = None) -> ClientResponse:
+        """General request method."""
+        _url = self._url + url if url.startswith("/") else url
+        resp = await self.session.request(
+            method=method,
+            url=_url,
+            data=data,
+            ssl=self._ssl,
+            chunked=None,
+        )
+
+        if resp.status != 200:
+            raise BadResponse(f"Bad HTTP status code: {resp.status}")
+
+        return resp
+
     async def login(self) -> None:
         """Login method."""
         if not self._authenticated:
-
             try:
-                resp = await self.session.post(
+                resp = await self.request(
+                    "POST",
                     "/login.cgi",
-                    data={"username": self.username, "password": self.password},
-                    ssl=self.ssl,
-                    chunked=None,
+                    data={"username": self._username, "password": self._password},
                 )
             except Exception as exc:
                 self.__del__()  # pylint: disable=unnecessary-dunder-call
                 raise CannotConnect(str(exc)) from exc
-
-            if not resp.status == 200:
-                raise BadResponse(f"Bad HTTP status code {resp.status}")
 
             # NOTE: Successful login will redirect back to /power
             if not str(resp.url).endswith("power"):
@@ -136,67 +167,49 @@ class Device:
     async def logout(self) -> None:
         """Logout method."""
         if self._authenticated:
-            resp = await self.session.post("/logout.cgi", ssl=self.ssl)
-
-            if not resp.status == 200:
-                raise BadResponse(f"Bad HTTP status code {resp.status}")
+            await self.request("POST", "/logout.cgi")
 
             self._authenticated = False
-
-    async def authenticate(self) -> bool:
-        """Athentication method."""
-        await self.login()
-        return self._authenticated
-
-    @property
-    async def config(self) -> str:
-        """Configuration retrieval."""
-        await self.login()
-
-        resp = await self.session.get("/cfg.cgi", ssl=self.ssl)
-
-        if not resp.status == 200:
-            raise BadResponse(f"Bad HTTP status code {resp.status}")
-
-        return await resp.text()
 
     async def update(self) -> None:
         """Update method for sensor data."""
         await self.login()
-
-        if self._data is None or (time.time() - self._time) > self.cache_time:
-            resp = await self.session.get("/sensors", ssl=self.ssl)
-
-            if not resp.status == 200:
-                raise BadResponse(f"Bad HTTP status code {resp.status}")
-
-            self._time = time.time()
-            self._data = (await resp.json())["sensors"]
+        if not self._data or (time.time() - self._time) > self._cache_time:
+            resp = await self.request("GET", "/mfi/sensors.cgi")
+            json = await resp.json()
+            status = json.get("status", None)
+            if status != "success":
+                raise UpdateError(f"Bad sensor update status: {status}")
+            else:
+                self._time = time.time()
+                self._data = json["sensors"]
 
     @property
-    async def data(self) -> list:
-        """Accessor for sensor data."""
-        await self.update()
+    async def config(self) -> str:
+        """Configuration retrieval method."""
+        await self.login()
+        resp = await self.request("GET", "/cfg.cgi")
+        return await resp.text()
+
+    @property
+    def host(self) -> dict:
+        """Device hostname."""
+        return self._host
+
+    @property
+    def data(self) -> dict:
+        """Device data."""
         return self._data
 
     @property
-    async def cached_data(self) -> list:
-        """Cached accessor for sensor data."""
-        if self._data is None:
-            return await self.data
-        else:
-            return self._data
-
-    @property
-    async def ports(self) -> int:
+    def ports(self) -> int:
         """Number of available ports for this device."""
-        data = await self.cached_data
-        return len(data)
+        return len(self._data)
 
     @property
-    async def model(self) -> str:
+    def model(self) -> str:
         """Model of this device."""
-        ports = await self.ports
+        ports = self.ports
         if ports == 1:
             return "mPower mini"
         elif ports == 3:
@@ -207,9 +220,9 @@ class Device:
             return "Unknown"
 
     @property
-    async def description(self) -> str:
+    def description(self) -> str:
         """Model of this device."""
-        ports = await self.ports
+        ports = self.ports
         if ports == 1:
             return "mFi Power Adapter with Wi-Fi"
         elif ports == 3:
@@ -221,28 +234,142 @@ class Device:
         else:
             return ""
 
-    async def get(self, port: int) -> dict:
-        """Get data for individual ports."""
-        data = await self.data
-        return data[port - 1]
+    async def create_sensor(self, port: int) -> mPowerSensor:
+        await self.update()
+        return mPowerSensor(self, port)
 
-    async def set(self, port: int, output: bool) -> None:
-        """Set output for individual ports."""
+    async def create_sensors(self) -> List[mPowerSensor]:
+        await self.update()
+        return [mPowerSensor(self, i + 1) for i in range(self.ports)]
+
+    async def create_switch(self, port: int) -> mPowerSwitch:
+        await self.update()
+        return mPowerSwitch(self, port)
+
+    async def create_switches(self) -> List[mPowerSwitch]:
+        await self.update()
+        return [mPowerSwitch(self, i + 1) for i in range(self.ports)]
+
+
+class mPowerEntity:
+    """mFi mPower entity baseclass."""
+
+    _device: mPowerDevice = None
+    _port: int = None
+    _data: dict = None
+
+    def __init__(self, device: mPowerDevice, port: int):
+        self._device = device
+        self._port = port
+
+        data = self._device._data
+        if not data:
+            raise ValueError(f"Device must be updated to create entity")
+        else:
+            self._data = self._device._data[self._port - 1]
+
+        ports = self._device.ports
         if port < 1:
-            raise ValueError(f"Port number {port} is too small")
+            raise ValueError(f"Port number {port} is too small: 1-{ports}")
+        elif port > ports:
+            raise ValueError(f"Port number {port} is too large: 1-{ports}")
 
-        if port > await self.ports:
-            raise ValueError("Port number {port} is too large")
+    def __str__(self):
+        return str(self._device) + f" Entity"
 
-        resp = await self.session.post(
-            f"/sensors/{port}", data={"output": int(output)}, ssl=self.ssl
+    async def update(self) -> None:
+        """Update entity data."""
+        await self._device.update()
+        data = self._device._data
+        self._data.update(data[self._port - 1])
+
+    @property
+    def data(self) -> dict:
+        """Entity data."""
+        return self._data
+
+    @property
+    def port(self) -> int:
+        """Port number (starting with 1)."""
+        return int(self._port)
+
+    @property
+    def label(self) -> str:
+        """Label."""
+        return str(self._data.get("label", f"Port {self._port}"))
+
+    @property
+    def output(self) -> bool:
+        """Output state."""
+        return bool(self._data["output"])
+
+    @property
+    def relay(self) -> bool:
+        """Initial output state which is applied after device boot."""
+        return bool(self._data["relay"])
+
+    @property
+    def lock(self) -> bool:
+        """Output lock state which prevents switching if enabled."""
+        return bool(self._data["lock"])
+
+
+class mPowerSensor(mPowerEntity):
+    """mFi mPower sensor representation."""
+
+    def __str__(self):
+        keys = ["label", "power", "current", "voltage", "powerfactor"]
+        vals = ", ".join([f"{k}={getattr(self, k)}" for k in keys])
+        return str(self._device) + f" Sensor {self._port}: {vals}"
+
+    @property
+    def power(self) -> float:
+        """Output power [W]."""
+        return float(self._data["power"])
+
+    @property
+    def current(self) -> float:
+        """Output current [A]."""
+        return float(self._data["current"])
+
+    @property
+    def voltage(self) -> float:
+        """Output voltage [V]."""
+        return float(self._data["voltage"])
+
+    @property
+    def powerfactor(self) -> float:
+        """Output current factor ("real power" / "apparent power") [1]."""
+        return float(self._data["powerfactor"])
+
+
+class mPowerSwitch(mPowerEntity):
+    """mFi mPower switch representation."""
+
+    def __str__(self):
+        keys = ["label", "output", "relay", "lock"]
+        vals = ", ".join([f"{k}={getattr(self, k)}" for k in keys])
+        return str(self._device) + f" Switch {self._port}: {vals}"
+
+    async def set(self, output: bool) -> None:
+        """Set output to on/off."""
+        await self._device.request(
+            "POST",
+            "/mfi/sensors.cgi",
+            data={"id": self._port, "output": int(output)}
         )
 
-        if not resp.status == 200:
-            raise BadResponse(f"Bad HTTP status code {resp.status}")
+    async def turn_on(self) -> None:
+        """Turn output on."""
+        await self.set(True)
 
-    async def toggle(self, port: int) -> None:
-        """Toggle output for individual ports."""
-        port_data = await self.get(port)
-        output = not bool(port_data["output"])
-        await self.set(port=port, output=output)
+    async def turn_off(self) -> None:
+        """Turn output off."""
+        await self.set(False)
+
+    async def toggle(self) -> None:
+        """Toggle output."""
+        await self.update()
+        output = not bool(self._data["output"])
+        await self.set(output=output)
+
