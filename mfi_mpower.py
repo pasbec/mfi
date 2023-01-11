@@ -11,7 +11,7 @@ highest possible rating according to the nmap enum-cipher-script which is docume
     https://nmap.org/nsedoc/scripts/ssl-enum-ciphers.html
 
 Be aware that SSL is only supported until TLSv1.0 is eventually removed from Python - at least
-unless someone finds a way to replace OpenSSL with a more recent version until then.
+unless someone finds a way to replace the OpenSSL binary with a more recent version until then.
 
 A brief description of the old API can be found here:
     https://community.ui.com/questions/mPower-mFi-Switch-and-mFi-In-Wall-Outlet-HTTP-API/824c1c63-b7e6-44ed-b19a-f1d68cd07269
@@ -358,22 +358,22 @@ class MPowerSensor(MPowerEntity):
     @property
     def power(self) -> float:
         """Return the output power [W]."""
-        return float(self._data["power"])
+        return round(self._data["power"], 3)
 
     @property
     def current(self) -> float:
         """Return the output current [A]."""
-        return float(self._data["current"])
+        return round(self._data["current"], 3)
 
     @property
     def voltage(self) -> float:
         """Return the output voltage [V]."""
-        return float(self._data["voltage"])
+        return round(self._data["voltage"], 3)
 
     @property
     def powerfactor(self) -> float:
         """Return the output current factor ("real power" / "apparent power") [1]."""
-        return float(self._data["powerfactor"])
+        return round(self._data["powerfactor"], 3)
 
 
 class MPowerSwitch(MPowerEntity):
