@@ -1,12 +1,11 @@
 # Asynchronous Python API for mFi mPower devices
 
 ## Reference
-The "REST" API for mFi mPower devices are briefly explained [here](https://community.ui.com/questions/mPower-mFi-Switch-and-mFi-In-Wall-Outlet-HTTP-API/824c1c63-b7e6-44ed-b19a-f1d68cd07269).
+The "REST" API for mFi mPower devices is briefly explained [here](https://community.ui.com/questions/mPower-mFi-Switch-and-mFi-In-Wall-Outlet-HTTP-API/824c1c63-b7e6-44ed-b19a-f1d68cd07269).
 
 ## Usage example
 ```python
 import asyncio
-
 import aiohttp
 
 from mfi_mpower import MPowerDevice
