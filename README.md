@@ -11,7 +11,7 @@ from mfi_mpower import MPowerDevice
 
 async def main():
 
-    data = {
+    settings = {
         "host": "mympower",
         "username": "admin",
         "password": "correcthorsebatterystaple",
@@ -19,7 +19,7 @@ async def main():
         "verify_ssl": True,
     }
 
-    async with MPowerDevice(**data) as device:
+    async with MPowerDevice(**settings) as device:
 
         print(device)
 
@@ -43,7 +43,7 @@ from mfi_mpower import MPowerDevice
 
 async def main():
 
-    data = {
+    settings = {
         "host": "mympower",
         "username": "admin",
         "password": "correcthorsebatterystaple",
@@ -52,7 +52,7 @@ async def main():
     }
 
     async with aiohttp.ClientSession() as session:
-        async with MPowerDevice(**data, session=session) as device:
+        async with MPowerDevice(**settings, session=session) as device:
 
             print(await device.create_sensor(1))
 
