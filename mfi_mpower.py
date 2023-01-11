@@ -1,5 +1,5 @@
 """
-Async API for Ubiquiti mFi mPower devices which are sadly EOL since 2015.
+Direct async API for Ubiquiti mFi mPower devices which are sadly EOL since 2015.
 
 Ubiquiti mFi mPower Devices use an ancient and unsecure OpenSSL version (1.0.0g 18 Jan 2012)
 even with the latest available mFi firmware 2.1.11 from here:
