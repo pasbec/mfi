@@ -256,6 +256,15 @@ class MPowerDevice:
         return hwaddr
 
     @property
+    def unique_id(self) -> str:
+        """Return unique device id from combined LAN/WLAN hardware addresses."""
+        lan_hwaddr = self.lan_data.get("hwaddr", "")
+        wlan_hwaddr = self.wlan_data.get("hwaddr", "")
+        if lan_hwaddr and wlan_hwaddr:
+            return f"{lan_hwaddr}:{wlan_hwaddr}"
+        return ""
+
+    @property
     def port_data(self) -> list[dict]:
         """Return the port data."""
         return self.data.get("sensors", [])
