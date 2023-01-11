@@ -144,13 +144,16 @@ class MPowerDevice:
         return f"{name}({vals})"
 
     async def request(
-        self, method: str, url: str, data: dict | None = None
+        self, method: str, url: str | URL, data: dict | None = None
     ) -> ClientResponse:
         """Session wrapper for general requests."""
+        _url = URL(url)
+        if not _url.is_absolute():
+            _url = self.url / str(_url).lstrip("/")
         try:
             resp = await self.session.request(
                 method=method,
-                url=self.url / url[1:] if url.startswith("/") else url,
+                url=_url,
                 data=data,
                 ssl=self._ssl,
                 chunked=None,
