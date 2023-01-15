@@ -1,7 +1,6 @@
 """Ubiquiti mFi MPower device"""
 from __future__ import annotations
 
-import asyncio
 import json
 from random import randrange
 import ssl
@@ -13,7 +12,6 @@ from yarl import URL
 from .board import MPowerBoard
 from .entities import MPowerSensor, MPowerSwitch
 from .exceptions import (
-    MPowerSSHError,
     MPowerAPIError,
     MPowerAPIConnError,
     MPowerAPIAuthError,
