@@ -21,16 +21,24 @@ The setup script from here allows to change the _port names_, the _initial port 
 The SSH connection to Ubiquiti mFi mPower is quite slow. Adding something like this to your `~/.ssh/config` file will enable SSH multiplexing which will speed things up! The settings will also make sure to get use suitable (weak) SSH settings:
 
 ```ssh
-Host <HOST_SELECTION>
+# ssh -F ~/.ssh/config ubnt@<MFI_HOST>
+# scp -O -F ~/.ssh/config ubnt@<MFI_HOST>
+
+Host <MFI_HOST_SELECTION>
     ControlMaster auto
     ControlPath ~/.ssh/sockets/m-%r@%h:%p
     ControlPersist 60m
     HostkeyAlgorithms +ssh-rsa
     KexAlgorithms +diffie-hellman-group1-sha1
     Ciphers +3des-cbc,aes128-cbc,aes256-cbc
+	PubkeyAcceptedKeyTypes +ssh-rsa
+	# IdentityFile ~/.ssh/id_rsa
+	# IdentitiesOnly yes
+    # UserKnownHostsFile ~/.ssh/known_hosts
+    # StrictHostKeyChecking no
 ```
 
-**Replace `<HOST_SELECTION>` to fit your setup, e.g. `my-mfi-device`, `my-mfi-device-*`, `10.0.0.1`, `192.168.0.100, 192.168.13.101`, ... and DO NOT USE bare `*`. Otherwise all connections will use settings from above!**
+**Replace `<MFI_HOST_SELECTION>` to fit your setup, e.g. `my-mfi-device`, `my-mfi-device-*`, `10.0.0.1`, `192.168.0.100, 192.168.13.101`, ... and DO NOT USE bare `*`. Otherwise all connections will use settings from above!**
 
 ## Usage example
 
