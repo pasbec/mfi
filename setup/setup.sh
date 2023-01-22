@@ -103,7 +103,7 @@ echo
 ###############################################################################
 
 userhost="$user@$host"
-ssh="ssh -oKexAlgorithms=+diffie-hellman-group1-sha1 -c aes256-cbc $user@$host"
+ssh="ssh -oKexAlgorithms=+diffie-hellman-group1-sha1 -oHostKeyAlgorithms=+ssh-rsa -oCiphers=+aes128-cbc $user@$host"
 
 pers="/etc/persistent"
 
