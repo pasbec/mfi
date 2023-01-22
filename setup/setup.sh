@@ -102,8 +102,7 @@ echo
 
 ###############################################################################
 
-userhost="$user@$host"
-ssh="ssh -oKexAlgorithms=+diffie-hellman-group1-sha1 -oHostKeyAlgorithms=+ssh-rsa -oCiphers=+aes128-cbc $user@$host"
+ssh="ssh $user@$host"
 
 pers="/etc/persistent"
 
@@ -269,7 +268,7 @@ checkMod() {
       echo "Installing $desc ..."
       $ssh "[ -f '$pers/rc.poststart' ] || echo '#!/bin/sh' > '$pers/rc.poststart'; chmod +x '$pers/rc.poststart'"
       $ssh "[ -d '$pers/rc.poststart.d' ] || mkdir '$pers/rc.poststart.d'"
-      scp -pr "mods/$desc" "$userhost:$pers/rc.poststart.d"
+      scp -O -pr "mods/$desc" "$user@$host:$pers/rc.poststart.d"
       $ssh "grep -q '$pers/$scr' '$pers/rc.poststart' || echo '$pers/$scr' >> '$pers/rc.poststart'; '$pers/$scr'"
     fi
     modinstall=1
@@ -284,7 +283,7 @@ echo
 
 # Copy public ssh key
 echo "Copy ssh id"
-ssh-copy-id "$userhost" 2> '/dev/null'
+ssh-copy-id "$user@$host" 2> '/dev/null'
 echo
 
 # Check firmware
